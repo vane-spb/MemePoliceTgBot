@@ -1,4 +1,4 @@
-package io.github.vanespb.MemePoliceTgBot;
+package io.github.vanespb.meme_police_bot;
 
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.boot.web.servlet.support.SpringBootServletInitializer;

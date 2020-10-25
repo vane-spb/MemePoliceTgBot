@@ -1,0 +1,11 @@
+tgbot:
+    name: MEME_POLICE_BOT
+    token: ${TG_BOT_TOKEN}
+
+vkbot:
+    name: MEME_POLICE_BOT
+    token: ${VK_BOT_TOKEN}
+    appid: ${VK_BOT_ID}
+    groupId: ${VK_GROUP_ID}
+    groupToken: ${VK_GROUP_TOKEN}
+

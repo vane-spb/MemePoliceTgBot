@@ -1,4 +1,4 @@
-package io.github.vanespb.MemePoliceTgBot;
+package io.github.vanespb.meme_police_bot;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
