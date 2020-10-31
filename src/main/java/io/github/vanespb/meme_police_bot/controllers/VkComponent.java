@@ -1,58 +1,77 @@
 package io.github.vanespb.meme_police_bot.controllers;
 
-import com.vk.api.sdk.client.TransportClient;
+import com.vk.api.sdk.callback.longpoll.CallbackApiLongPoll;
 import com.vk.api.sdk.client.VkApiClient;
 import com.vk.api.sdk.client.actors.GroupActor;
 import com.vk.api.sdk.exceptions.ApiException;
 import com.vk.api.sdk.exceptions.ClientException;
 import com.vk.api.sdk.httpclient.HttpTransportClient;
 import com.vk.api.sdk.objects.messages.Message;
-import com.vk.api.sdk.queries.messages.MessagesGetLongPollHistoryQuery;
+import com.vk.api.sdk.objects.messages.MessageAttachment;
+import com.vk.api.sdk.objects.photos.Photo;
+import com.vk.api.sdk.objects.photos.PhotoSizes;
+import com.vk.api.sdk.objects.users.UserXtrCounters;
+import lombok.SneakyThrows;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
-import javax.annotation.PostConstruct;
+import javax.inject.Inject;
+import java.net.URL;
+import java.util.Comparator;
 import java.util.List;
 
-
 @Component
-public class VkComponent {
-    @Value("${vkbot.token}")
-    private String token;
-    @Value("${vkbot.appid}")
-    private Integer appid;
-    @Value("${vkbot.groupToken}")
-    private String groupToken;
-    @Value("${vkbot.groupId}")
-    private Integer groupId;
+public class VkComponent extends CallbackApiLongPoll {
+    private final VkApiClient vk = new VkApiClient(new HttpTransportClient());
+    private final GroupActor actor;
     @Autowired
-    TelegrammComponent tgBot;
-    VkApiClient vk;
-    GroupActor actor;
-    int ts = 1;
+    private TelegrammComponent tgBot;
 
-    @PostConstruct
-    public void initialise() throws ClientException, ApiException {
-        TransportClient transportClient = new HttpTransportClient();
-        vk = new VkApiClient(transportClient);
+    @Inject
+    public VkComponent(@Value("${vkbot.groupId}") Integer groupId, @Value("${vkbot.groupToken}") String groupToken) {
+        super(new VkApiClient(new HttpTransportClient()), new GroupActor(groupId, groupToken));
         actor = new GroupActor(groupId, groupToken);
-        ts = vk.messages().getLongPollServer(actor).execute().getTs();
-
     }
 
-    @Scheduled(fixedDelay = 1*1000)
-    public void getMessage() throws ClientException, ApiException {
-        MessagesGetLongPollHistoryQuery eventsQuery = vk.messages()
-                .getLongPollHistory(actor)
-                .ts(ts);
-
-        List<Message> messages = eventsQuery
-                .execute()
-                .getMessages()
-                .getMessages();
-        ts = vk.messages().getLongPollServer(actor).execute().getTs();
-        messages.forEach(m->tgBot.sendMessage(m.getBody()));
+    @Async
+    @SneakyThrows
+    @Override
+    public void run() {
+        super.run();
     }
+
+    @Override
+    public void messageNew(Integer groupId, Message message) {
+        String author = "Anonimous";
+        try {
+            List<UserXtrCounters> execute = vk.users().get(actor).userIds(message.getFromId() + "").execute();
+            if (execute != null && !execute.isEmpty()) {
+                UserXtrCounters user = execute.get(0);
+                author = String.format("%s %s", user.getFirstName(), user.getLastName());
+            }
+        } catch (ApiException | ClientException e) {
+            e.printStackTrace();
+        }
+        String text = message.getText();
+        tgBot.sendMessage(String.format("%s sad in vk conference: %n%s", author, text));
+        List<MessageAttachment> attachments = message.getAttachments();
+        if (attachments != null) {
+            for (MessageAttachment attachment : attachments) {
+                Photo photo = attachment.getPhoto();
+                URL url = photo.getSizes().stream()
+                        .max(Comparator.comparingInt(PhotoSizes::getHeight))
+                        .orElse(new PhotoSizes())
+                        .getUrl();
+
+                tgBot.sendMessage(url.toString());
+            }
+        }
+    }
+
+    public void sendMessage(String message) {
+        vk.messages().send(actor).message(message);
+    }
+
 }

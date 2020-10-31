@@ -1,6 +1,9 @@
+server.port: 8066
+
 tgbot:
     name: MEME_POLICE_BOT
     token: ${TG_BOT_TOKEN}
+    channel: -1001261743202
 
 vkbot:
     name: MEME_POLICE_BOT
