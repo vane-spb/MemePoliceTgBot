@@ -62,7 +62,7 @@ public class VkComponent extends CallbackApiLongPoll {
                     String.format("From %s", author) :
                     String.format("%s sad in vk conference: %n%s", author, text);
             List<MessageAttachment> attachments = message.getAttachments();
-            if (attachments == null)
+            if (attachments.isEmpty())
                 tgBot.sendMessage(telegrammMessageText);
             else {
                 for (MessageAttachment attachment : attachments) {
@@ -81,7 +81,7 @@ public class VkComponent extends CallbackApiLongPoll {
                     }
                     Video video = attachment.getVideo();
                     //нужно быть доверенным приложением для получения видео
-                    if(video!=null && video.getFiles() != null) {
+                    if (video != null && video.getFiles() != null) {
                         URL videoUrl = video.getFiles().getMp4720();
                         try {
                             tgBot.sendVideo(telegrammMessageText, videoUrl.openStream());
@@ -91,8 +91,7 @@ public class VkComponent extends CallbackApiLongPoll {
                     }
                 }
             }
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }
