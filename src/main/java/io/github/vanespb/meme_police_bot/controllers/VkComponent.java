@@ -11,6 +11,7 @@ import com.vk.api.sdk.objects.messages.MessageAttachment;
 import com.vk.api.sdk.objects.photos.Photo;
 import com.vk.api.sdk.objects.photos.PhotoSizes;
 import com.vk.api.sdk.objects.users.UserXtrCounters;
+import com.vk.api.sdk.objects.video.Video;
 import lombok.SneakyThrows;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -18,6 +19,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
 import javax.inject.Inject;
+import java.io.IOException;
 import java.net.URL;
 import java.util.Comparator;
 import java.util.List;
@@ -44,29 +46,54 @@ public class VkComponent extends CallbackApiLongPoll {
 
     @Override
     public void messageNew(Integer groupId, Message message) {
-        String author = "Anonimous";
         try {
-            List<UserXtrCounters> execute = vk.users().get(actor).userIds(message.getFromId() + "").execute();
-            if (execute != null && !execute.isEmpty()) {
-                UserXtrCounters user = execute.get(0);
-                author = String.format("%s %s", user.getFirstName(), user.getLastName());
+            String author = "Anonimous";
+            try {
+                List<UserXtrCounters> execute = vk.users().get(actor).userIds(message.getFromId() + "").execute();
+                if (execute != null && !execute.isEmpty()) {
+                    UserXtrCounters user = execute.get(0);
+                    author = String.format("%s %s", user.getFirstName(), user.getLastName());
+                }
+            } catch (ApiException | ClientException e) {
+                e.printStackTrace();
             }
-        } catch (ApiException | ClientException e) {
-            e.printStackTrace();
-        }
-        String text = message.getText();
-        tgBot.sendMessage(String.format("%s sad in vk conference: %n%s", author, text));
-        List<MessageAttachment> attachments = message.getAttachments();
-        if (attachments != null) {
-            for (MessageAttachment attachment : attachments) {
-                Photo photo = attachment.getPhoto();
-                URL url = photo.getSizes().stream()
-                        .max(Comparator.comparingInt(PhotoSizes::getHeight))
-                        .orElse(new PhotoSizes())
-                        .getUrl();
+            String text = message.getText();
+            String telegrammMessageText = text.isEmpty() ?
+                    String.format("From %s", author) :
+                    String.format("%s sad in vk conference: %n%s", author, text);
+            List<MessageAttachment> attachments = message.getAttachments();
+            if (attachments == null)
+                tgBot.sendMessage(telegrammMessageText);
+            else {
+                for (MessageAttachment attachment : attachments) {
+                    Photo photo = attachment.getPhoto();
+                    if (photo != null) {
 
-                tgBot.sendMessage(url.toString());
+                        URL photoUrl = photo.getSizes().stream()
+                                .max(Comparator.comparingInt(PhotoSizes::getHeight))
+                                .orElse(new PhotoSizes())
+                                .getUrl();
+                        try {
+                            tgBot.sendPhoto(telegrammMessageText, photoUrl.openStream());
+                        } catch (IOException exception) {
+                            exception.printStackTrace();
+                        }
+                    }
+                    Video video = attachment.getVideo();
+                    //нужно быть доверенным приложением для получения видео
+                    if(video!=null && video.getFiles() != null) {
+                        URL videoUrl = video.getFiles().getMp4720();
+                        try {
+                            tgBot.sendVideo(telegrammMessageText, videoUrl.openStream());
+                        } catch (IOException exception) {
+                            exception.printStackTrace();
+                        }
+                    }
+                }
             }
+        }
+        catch (Exception e) {
+            e.printStackTrace();
         }
     }
 
