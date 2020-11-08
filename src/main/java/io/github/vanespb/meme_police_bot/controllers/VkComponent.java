@@ -41,7 +41,6 @@ public class VkComponent extends CallbackApiLongPoll {
     @SneakyThrows
     @Override
     public void run() {
-        System.out.println("vk bot component started");
         super.run();
     }
 
@@ -61,7 +60,7 @@ public class VkComponent extends CallbackApiLongPoll {
             String text = message.getText();
             String telegrammMessageText = text.isEmpty() ?
                     String.format("From %s", author) :
-                    String.format("*%s*%n%s", author, text);
+                    String.format("%s sad in vk conference: %n%s", author, text);
             List<MessageAttachment> attachments = message.getAttachments();
             if (attachments.isEmpty())
                 tgBot.sendMessage(telegrammMessageText);
