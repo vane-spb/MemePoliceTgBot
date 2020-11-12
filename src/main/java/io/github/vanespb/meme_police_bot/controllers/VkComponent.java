@@ -12,10 +12,7 @@ import com.vk.api.sdk.objects.photos.Photo;
 import com.vk.api.sdk.objects.photos.PhotoSizes;
 import com.vk.api.sdk.objects.users.UserXtrCounters;
 import com.vk.api.sdk.objects.video.Video;
-import lombok.SneakyThrows;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
 import javax.inject.Inject;
@@ -25,24 +22,28 @@ import java.util.Comparator;
 import java.util.List;
 
 @Component
-public class VkComponent extends CallbackApiLongPoll {
+public class VkComponent extends CallbackApiLongPoll implements Runnable{
     private final VkApiClient vk = new VkApiClient(new HttpTransportClient());
     private final GroupActor actor;
-    @Autowired
-    private TelegrammComponent tgBot;
+    private final TelegrammComponent tgBot;
 
     @Inject
-    public VkComponent(@Value("${vkbot.groupId}") Integer groupId, @Value("${vkbot.groupToken}") String groupToken) {
+    public VkComponent(@Value("${vkbot.groupId}") Integer groupId, @Value("${vkbot.groupToken}") String groupToken,
+                       TelegrammComponent tgBot) {
         super(new VkApiClient(new HttpTransportClient()), new GroupActor(groupId, groupToken));
+        this.tgBot = tgBot;
         actor = new GroupActor(groupId, groupToken);
+        this.run();
     }
 
-    @Async
-    @SneakyThrows
     @Override
     public void run() {
-        System.out.println("vk bot component started");
-        super.run();
+        try {
+            super.run();
+        } catch (Exception e) {
+            e.printStackTrace();
+            this.run();
+        }
     }
 
     @Override
