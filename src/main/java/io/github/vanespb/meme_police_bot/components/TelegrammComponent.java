@@ -1,4 +1,4 @@
-package io.github.vanespb.meme_police_bot.controllers;
+package io.github.vanespb.meme_police_bot.components;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -10,14 +10,12 @@ import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.ApiContextInitializer;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.send.*;
-import org.telegram.telegrambots.meta.api.objects.InputFile;
 import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.media.InputMedia;
 import org.telegram.telegrambots.meta.api.objects.media.InputMediaPhoto;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
-import java.io.File;
 import java.io.InputStream;
 import java.net.URL;
 import java.util.List;

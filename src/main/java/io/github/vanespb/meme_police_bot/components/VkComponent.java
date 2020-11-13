@@ -1,4 +1,4 @@
-package io.github.vanespb.meme_police_bot.controllers;
+package io.github.vanespb.meme_police_bot.components;
 
 import com.vk.api.sdk.callback.longpoll.CallbackApiLongPoll;
 import com.vk.api.sdk.client.VkApiClient;
@@ -33,7 +33,6 @@ public class VkComponent extends CallbackApiLongPoll implements Runnable{
         super(new VkApiClient(new HttpTransportClient()), new GroupActor(groupId, groupToken));
         this.tgBot = tgBot;
         actor = new GroupActor(groupId, groupToken);
-        this.run();
     }
 
     @Override
