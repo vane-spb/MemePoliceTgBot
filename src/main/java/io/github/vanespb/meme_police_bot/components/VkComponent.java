@@ -8,21 +8,20 @@ import com.vk.api.sdk.exceptions.ClientException;
 import com.vk.api.sdk.httpclient.HttpTransportClient;
 import com.vk.api.sdk.objects.messages.Message;
 import com.vk.api.sdk.objects.messages.MessageAttachment;
-import com.vk.api.sdk.objects.photos.Photo;
+import com.vk.api.sdk.objects.photos.Image;
 import com.vk.api.sdk.objects.photos.PhotoSizes;
 import com.vk.api.sdk.objects.users.UserXtrCounters;
-import com.vk.api.sdk.objects.video.Video;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import javax.inject.Inject;
-import java.io.IOException;
-import java.net.URL;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 @Component
-public class VkComponent extends CallbackApiLongPoll implements Runnable{
+public class VkComponent extends CallbackApiLongPoll implements Runnable {
     private final VkApiClient vk = new VkApiClient(new HttpTransportClient());
     private final GroupActor actor;
     private final TelegrammComponent tgBot;
@@ -48,53 +47,46 @@ public class VkComponent extends CallbackApiLongPoll implements Runnable{
     @Override
     public void messageNew(Integer groupId, Message message) {
         try {
-            String author = "Anonimous";
-            try {
-                List<UserXtrCounters> execute = vk.users().get(actor).userIds(message.getFromId() + "").execute();
-                if (execute != null && !execute.isEmpty()) {
-                    UserXtrCounters user = execute.get(0);
-                    author = String.format("%s %s", user.getFirstName(), user.getLastName());
-                }
-            } catch (ApiException | ClientException e) {
-                e.printStackTrace();
-            }
+            String author = getAuthor(message);
             String text = message.getText();
             String telegrammMessageText = text.isEmpty() ?
                     String.format("From %s", author) :
-                    String.format("*%s*%n%s", author, text);
+                    String.format("<b>%s</b>%n%s", author, text);
             List<MessageAttachment> attachments = message.getAttachments();
             if (attachments.isEmpty())
                 tgBot.sendMessage(telegrammMessageText);
             else {
-                for (MessageAttachment attachment : attachments) {
-                    Photo photo = attachment.getPhoto();
-                    if (photo != null) {
-
-                        URL photoUrl = photo.getSizes().stream()
-                                .max(Comparator.comparingInt(PhotoSizes::getHeight))
-                                .orElse(new PhotoSizes())
-                                .getUrl();
-                        try {
-                            tgBot.sendPhoto(telegrammMessageText, photoUrl.openStream());
-                        } catch (IOException exception) {
-                            exception.printStackTrace();
-                        }
-                    }
-                    Video video = attachment.getVideo();
-                    //нужно быть доверенным приложением для получения видео
-                    if (video != null && video.getFiles() != null) {
-                        URL videoUrl = video.getFiles().getMp4720();
-                        try {
-                            tgBot.sendVideo(telegrammMessageText, videoUrl.openStream());
-                        } catch (IOException exception) {
-                            exception.printStackTrace();
-                        }
-                    }
-                }
+                tgBot.sendMediaGroup(telegrammMessageText, attachments.stream()
+                        .map(this::getUrl)
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toList()));
             }
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    private String getAuthor(Message message) {
+        String author = "Anonimous";
+        try {
+            List<UserXtrCounters> execute = vk.users().get(actor).userIds(message.getFromId() + "").execute();
+            if (execute != null && !execute.isEmpty()) {
+                UserXtrCounters user = execute.get(0);
+                author = String.format("%s %s", user.getFirstName(), user.getLastName());
+            }
+        } catch (ApiException | ClientException e) {
+            e.printStackTrace();
+        }
+        return author;
+    }
+
+    private String getUrl(MessageAttachment attachment) {
+        PhotoSizes image = attachment.getPhoto().getSizes().stream()
+                .max(Comparator.comparing(PhotoSizes::getHeight))
+                .orElse(null);
+        if (image != null)
+            return image.getUrl().toString();
+        else return null;
     }
 
     public void sendMessage(String message) {
