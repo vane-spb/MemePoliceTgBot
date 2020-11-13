@@ -10,22 +10,27 @@ import com.vk.api.sdk.objects.messages.Message;
 import com.vk.api.sdk.objects.messages.MessageAttachment;
 import com.vk.api.sdk.objects.photos.PhotoSizes;
 import com.vk.api.sdk.objects.users.UserXtrCounters;
+import lombok.Getter;
 import lombok.Setter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import javax.inject.Inject;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Component
+@Getter
 public class VkComponent extends CallbackApiLongPoll implements Runnable {
     private final VkApiClient vk = new VkApiClient(new HttpTransportClient());
     private final GroupActor actor;
     @Setter
     private TelegrammComponent tgBot;
+    private Message lastMessage;
+    private String error;
 
     @Inject
     public VkComponent(@Value("${vkbot.groupId}") Integer groupId, @Value("${vkbot.groupToken}") String groupToken) {
@@ -39,12 +44,13 @@ public class VkComponent extends CallbackApiLongPoll implements Runnable {
             super.run();
         } catch (Exception e) {
             e.printStackTrace();
-            this.run();
+            error = e.getMessage() + Arrays.toString(e.getStackTrace());
         }
     }
 
     @Override
     public void messageNew(Integer groupId, Message message) {
+        lastMessage = message;
         try {
             String author = getAuthor(message);
             String text = message.getText();
