@@ -8,9 +8,9 @@ import com.vk.api.sdk.exceptions.ClientException;
 import com.vk.api.sdk.httpclient.HttpTransportClient;
 import com.vk.api.sdk.objects.messages.Message;
 import com.vk.api.sdk.objects.messages.MessageAttachment;
-import com.vk.api.sdk.objects.photos.Image;
 import com.vk.api.sdk.objects.photos.PhotoSizes;
 import com.vk.api.sdk.objects.users.UserXtrCounters;
+import lombok.Setter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -24,13 +24,12 @@ import java.util.stream.Collectors;
 public class VkComponent extends CallbackApiLongPoll implements Runnable {
     private final VkApiClient vk = new VkApiClient(new HttpTransportClient());
     private final GroupActor actor;
-    private final TelegrammComponent tgBot;
+    @Setter
+    private TelegrammComponent tgBot;
 
     @Inject
-    public VkComponent(@Value("${vkbot.groupId}") Integer groupId, @Value("${vkbot.groupToken}") String groupToken,
-                       TelegrammComponent tgBot) {
+    public VkComponent(@Value("${vkbot.groupId}") Integer groupId, @Value("${vkbot.groupToken}") String groupToken) {
         super(new VkApiClient(new HttpTransportClient()), new GroupActor(groupId, groupToken));
-        this.tgBot = tgBot;
         actor = new GroupActor(groupId, groupToken);
     }
 

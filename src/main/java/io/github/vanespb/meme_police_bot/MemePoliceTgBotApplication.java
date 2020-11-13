@@ -1,5 +1,6 @@
 package io.github.vanespb.meme_police_bot;
 
+import io.github.vanespb.meme_police_bot.components.TelegrammComponent;
 import io.github.vanespb.meme_police_bot.components.VkComponent;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.SpringApplication;
@@ -21,7 +22,9 @@ public class MemePoliceTgBotApplication extends SpringBootServletInitializer {
     public static void main(String[] args) {
         ConfigurableApplicationContext context = SpringApplication.run(MemePoliceTgBotApplication.class, args);
         ThreadPoolTaskExecutor taskExecutor = (ThreadPoolTaskExecutor) context.getBean("taskExecutor");
-        taskExecutor.execute(context.getBean(VkComponent.class));
+        VkComponent vkComponent = context.getBean(VkComponent.class);
+        vkComponent.setTgBot(context.getBean(TelegrammComponent.class));
+        taskExecutor.execute(vkComponent);
     }
 
 }
