@@ -4,6 +4,7 @@ tgbot:
     name: MEME_POLICE_BOT
     token: ${TG_BOT_TOKEN}
     channel: -1001261743202
+    channelName: Meme Police
 
 vkbot:
     name: MEME_POLICE_BOT
@@ -11,4 +12,5 @@ vkbot:
     appid: ${VK_BOT_ID}
     groupId: ${VK_GROUP_ID}
     groupToken: ${VK_GROUP_TOKEN}
+    conferenceId: ${VK_CONFERENCE_ID}
 

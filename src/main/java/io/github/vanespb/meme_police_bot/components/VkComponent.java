@@ -16,10 +16,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import javax.inject.Inject;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Objects;
+import java.io.File;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Component
@@ -27,15 +25,19 @@ import java.util.stream.Collectors;
 public class VkComponent extends CallbackApiLongPoll implements Runnable {
     private final VkApiClient vk = new VkApiClient(new HttpTransportClient());
     private final GroupActor actor;
+    private final Integer conferenceId;
+    private final Random random = new Random();
     @Setter
     private TelegrammComponent tgBot;
     private Message lastMessage;
     private String error;
 
     @Inject
-    public VkComponent(@Value("${vkbot.groupId}") Integer groupId, @Value("${vkbot.groupToken}") String groupToken) {
+    public VkComponent(@Value("${vkbot.groupId}") Integer groupId, @Value("${vkbot.groupToken}") String groupToken,
+                       @Value("${vkbot.conferenceId}") Integer conferenceId) {
         super(new VkApiClient(new HttpTransportClient()), new GroupActor(groupId, groupToken));
         actor = new GroupActor(groupId, groupToken);
+        this.conferenceId = conferenceId;
     }
 
     @Override
@@ -61,8 +63,8 @@ public class VkComponent extends CallbackApiLongPoll implements Runnable {
             if (attachments.isEmpty())
                 tgBot.sendMessage(telegrammMessageText);
             else {
-                tgBot.sendMediaGroup(telegrammMessageText, attachments.stream()
-                        .map(this::getUrl)
+                tgBot.send(telegrammMessageText, attachments.stream()
+                        .map(this::getPhotoUrl)
                         .filter(Objects::nonNull)
                         .collect(Collectors.toList()));
             }
@@ -85,7 +87,7 @@ public class VkComponent extends CallbackApiLongPoll implements Runnable {
         return author;
     }
 
-    private String getUrl(MessageAttachment attachment) {
+    private String getPhotoUrl(MessageAttachment attachment) {
         PhotoSizes image = attachment.getPhoto().getSizes().stream()
                 .max(Comparator.comparing(PhotoSizes::getHeight))
                 .orElse(null);
@@ -94,8 +96,25 @@ public class VkComponent extends CallbackApiLongPoll implements Runnable {
         else return null;
     }
 
-    public void sendMessage(String message) {
-        vk.messages().send(actor).message(message);
+    public Integer sendMessage(String message, List<File> photos) {
+        try {
+            return vk.messages().send(actor)
+                    .message(message)
+                    .peerId(conferenceId)
+                    .randomId(random.nextInt())
+                    .execute();
+        } catch (ApiException e) {
+            e.printStackTrace();
+        } catch (ClientException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    public String uploadFile(List<File> photos) {
+//        photos.
+//        vk.upload().photoMessage(vk.photos().getMessagesUploadServer(actor), file)
+        return null;
     }
 
 }

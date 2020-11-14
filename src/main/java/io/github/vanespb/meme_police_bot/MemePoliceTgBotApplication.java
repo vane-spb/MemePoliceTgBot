@@ -11,6 +11,9 @@ import org.springframework.boot.web.servlet.support.SpringBootServletInitializer
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import org.telegram.telegrambots.meta.TelegramBotsApi;
+import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
+import org.telegram.telegrambots.updatesreceivers.DefaultBotSession;
 
 @Slf4j
 @SpringBootApplication
@@ -19,11 +22,18 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 @EnableAsync(proxyTargetClass = true)
 public class MemePoliceTgBotApplication extends SpringBootServletInitializer {
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws TelegramApiException {
         ConfigurableApplicationContext context = SpringApplication.run(MemePoliceTgBotApplication.class, args);
         ThreadPoolTaskExecutor taskExecutor = (ThreadPoolTaskExecutor) context.getBean("taskExecutor");
+
+        //initialise telegramm bot
+        TelegrammComponent telegrammComponent = context.getBean(TelegrammComponent.class);
+        TelegramBotsApi botsApi = new TelegramBotsApi(DefaultBotSession.class);
+        botsApi.registerBot(telegrammComponent);
+
+        //initialise vk bot
         VkComponent vkComponent = context.getBean(VkComponent.class);
-        vkComponent.setTgBot(context.getBean(TelegrammComponent.class));
+        vkComponent.setTgBot(telegrammComponent);
         taskExecutor.execute(vkComponent);
     }
 

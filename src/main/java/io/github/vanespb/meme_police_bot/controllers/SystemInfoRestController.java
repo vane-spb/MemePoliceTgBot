@@ -10,6 +10,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @RestController
 public class SystemInfoRestController {
     @Autowired
@@ -40,8 +43,10 @@ public class SystemInfoRestController {
     }
 
     @PostMapping("send_to_vk")
-    public String sendToVk(@RequestParam(value = "message") String message) {
-        vk.sendMessage(message);
+    public String sendToVk(@RequestParam(value = "message") String message, @RequestParam(value = "content") String url) {
+        List attach = new ArrayList();
+        attach.add(url);
+        vk.sendMessage(message, attach);
         return "Done!";
     }
 
