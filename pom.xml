@@ -22,7 +22,7 @@
     <groupId>io.github.vane-spb</groupId>
     <artifactId>MemePoliceTgBot</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <packaging>war</packaging>
+    <packaging>jar</packaging>
     <name>MemePoliceTgBot</name>
     <description>Bot to connect VK conference to telegram.</description>
 
