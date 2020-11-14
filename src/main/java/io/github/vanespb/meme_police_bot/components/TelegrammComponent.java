@@ -13,7 +13,7 @@ import org.telegram.telegrambots.meta.api.methods.send.SendMediaGroup;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
-import org.telegram.telegrambots.meta.api.objects.media.InputMediaPhoto;
+import org.telegram.telegrambots.meta.api.objects.media.*;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
 import java.util.List;
@@ -64,11 +64,7 @@ public class TelegrammComponent extends TelegramLongPollingBot {
         SendMediaGroup sendMediaGroup = SendMediaGroup.builder()
                 .chatId(channelId)
                 .medias(fileURLs.stream()
-                        .map(url -> InputMediaPhoto.builder()
-                                .caption(message)
-                                .media(url)
-                                .parseMode(ParseMode.HTML)
-                                .build())
+                        .map(url -> getInputMedia(url, message))
                         .collect(Collectors.toList()))
                 .build();
         try {
@@ -76,6 +72,32 @@ public class TelegrammComponent extends TelegramLongPollingBot {
         } catch (TelegramApiException e) {
             e.printStackTrace();
         }
+    }
+
+    private InputMedia getInputMedia(String url, String message) {
+        if (url.contains(".jpg"))
+            return InputMediaPhoto.builder()
+                    .caption(message)
+                    .media(url)
+                    .parseMode(ParseMode.HTML)
+                    .build();
+        if (url.contains(".mp4"))
+            return InputMediaVideo.builder()
+                    .caption(message)
+                    .media(url)
+                    .parseMode(ParseMode.HTML)
+                    .build();
+        if (url.contains(".gif"))
+            return InputMediaAnimation.builder()
+                    .caption(message)
+                    .media(url)
+                    .parseMode(ParseMode.HTML)
+                    .build();
+        return InputMediaDocument.builder()
+                .caption(message)
+                .media(url)
+                .parseMode(ParseMode.HTML)
+                .build();
     }
 
     @Override
