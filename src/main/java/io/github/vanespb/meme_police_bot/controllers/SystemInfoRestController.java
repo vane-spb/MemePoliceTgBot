@@ -10,8 +10,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Objects;
 
 @RestController
 public class SystemInfoRestController {
@@ -33,7 +32,7 @@ public class SystemInfoRestController {
     @GetMapping("vk")
     public String getVk() {
         return new JSONObject()
-                .put("token", vk.getActor().getAccessToken())
+                .put("token", Objects.nonNull(vk.getActor().getAccessToken()))
                 .put("group_id", vk.getActor().getGroupId())
                 .put("id", vk.getActor().getId())
                 .put("vk-version", vk.getVk().getVersion())
@@ -44,16 +43,7 @@ public class SystemInfoRestController {
 
     @PostMapping("send_to_vk")
     public String sendToVk(@RequestParam(value = "message") String message, @RequestParam(value = "content") String url) {
-        List attach = new ArrayList();
-        attach.add(url);
-        vk.sendMessage(message, attach);
-        return "Done!";
-    }
-
-    @GetMapping("start_vk")
-    public String startVk(@RequestParam(value = "message") String message) {
-        vk.setTgBot(tg);
-        vk.run();
+        vk.sendMessage(message, null);
         return "Done!";
     }
 
