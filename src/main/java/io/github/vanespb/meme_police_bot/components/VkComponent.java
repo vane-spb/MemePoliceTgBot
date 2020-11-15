@@ -8,8 +8,11 @@ import com.vk.api.sdk.exceptions.ClientException;
 import com.vk.api.sdk.httpclient.HttpTransportClient;
 import com.vk.api.sdk.objects.messages.Message;
 import com.vk.api.sdk.objects.messages.MessageAttachment;
+import com.vk.api.sdk.objects.photos.Photo;
 import com.vk.api.sdk.objects.photos.PhotoSizes;
+import com.vk.api.sdk.objects.photos.responses.MessageUploadResponse;
 import com.vk.api.sdk.objects.users.UserXtrCounters;
+import com.vk.api.sdk.queries.messages.MessagesSendQuery;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.beans.factory.annotation.Value;
@@ -96,25 +99,32 @@ public class VkComponent extends CallbackApiLongPoll implements Runnable {
         else return null;
     }
 
-    public Integer sendMessage(String message, List<File> photos) {
+    public Integer sendMessage(String message, List<File> files) {
         try {
-            return vk.messages().send(actor)
+            MessagesSendQuery sendQuery = vk.messages().send(actor)
                     .message(message)
                     .peerId(conferenceId)
-                    .randomId(random.nextInt())
-                    .execute();
-        } catch (ApiException e) {
-            e.printStackTrace();
-        } catch (ClientException e) {
+                    .randomId(random.nextInt());
+            for (File photo : files) {
+                sendQuery = sendQuery.attachment(uploadFile(photo));
+            }
+            return sendQuery.execute();
+        } catch (ApiException | ClientException e) {
             e.printStackTrace();
         }
         return null;
     }
 
-    public String uploadFile(List<File> photos) {
-//        photos.
-//        vk.upload().photoMessage(vk.photos().getMessagesUploadServer(actor), file)
-        return null;
+    public String uploadFile(File file) throws ClientException, ApiException {
+        String uploadUrl = vk.photos().getMessagesUploadServer(actor).execute().getUploadUrl().toString();
+        MessageUploadResponse uploadResponse = vk.upload()
+                .photoMessage(uploadUrl, file)
+                .execute();
+        Photo photo = vk.photos().saveMessagesPhoto(actor, uploadResponse.getPhoto())
+                .server(uploadResponse.getServer())
+                .hash(uploadResponse.getHash())
+                .execute().get(0);
+        return String.format("photo%d_%d", photo.getOwnerId(), photo.getId());
     }
 
 }

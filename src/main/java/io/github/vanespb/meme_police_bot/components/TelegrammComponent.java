@@ -4,6 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.apache.commons.io.IOUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -18,11 +19,13 @@ import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.media.*;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Component
@@ -52,8 +55,25 @@ public class TelegrammComponent extends TelegramLongPollingBot {
             Message message = update.getMessage();
             String title = message.getChat().getTitle();
             if (title != null && title.contains(channelName)) {
+                List<File> files = message.getEntities().stream()
+                        .map(e -> {
+                            try {
+                                InputStream inputStream = new URL(e.getUrl()).openStream();
+                                File file = new File("tmp.jpg");
+                                try (FileOutputStream outputStream = new FileOutputStream(file)) {
+                                    IOUtils.copy(inputStream, outputStream);
+
+                                }
+                                return file;
+                            } catch (Exception exception) {
+                                exception.printStackTrace();
+                            }
+                            return null;
+                        })
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toList());
                 vkBot.sendMessage(String.format("%s: %n%s",
-                        message.getFrom().getUserName(), message.getText()), new ArrayList<>());
+                        message.getFrom().getUserName(), message.getText()), files);
             }
         }
     }
