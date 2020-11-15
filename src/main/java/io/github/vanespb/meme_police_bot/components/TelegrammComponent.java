@@ -1,20 +1,19 @@
 package io.github.vanespb.meme_police_bot.components;
 
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 import org.apache.commons.io.IOUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
+import org.telegram.telegrambots.meta.api.methods.GetFile;
 import org.telegram.telegrambots.meta.api.methods.ParseMode;
 import org.telegram.telegrambots.meta.api.methods.send.SendMediaGroup;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.methods.send.SendPhoto;
 import org.telegram.telegrambots.meta.api.objects.InputFile;
 import org.telegram.telegrambots.meta.api.objects.Message;
+import org.telegram.telegrambots.meta.api.objects.PhotoSize;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.media.*;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
@@ -24,6 +23,8 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -55,27 +56,55 @@ public class TelegrammComponent extends TelegramLongPollingBot {
             Message message = update.getMessage();
             String title = message.getChat().getTitle();
             if (title != null && title.contains(channelName)) {
-                List<File> files = message.getEntities().stream()
-                        .map(e -> {
-                            try {
-                                InputStream inputStream = new URL(e.getUrl()).openStream();
-                                File file = new File("tmp.jpg");
-                                try (FileOutputStream outputStream = new FileOutputStream(file)) {
-                                    IOUtils.copy(inputStream, outputStream);
-
-                                }
-                                return file;
-                            } catch (Exception exception) {
-                                exception.printStackTrace();
-                            }
-                            return null;
-                        })
-                        .filter(Objects::nonNull)
-                        .collect(Collectors.toList());
+                List<File> files = new ArrayList<>();
+                files.addAll(getFilesFromEntites(message));
+                files.addAll(getFilesFromPhoto(message));
+                String messageText = message.getText();
                 vkBot.sendMessage(String.format("%s: %n%s",
-                        message.getFrom().getUserName(), message.getText()), files);
+                        message.getFrom().getUserName(), messageText != null ? messageText : ""), files);
             }
         }
+    }
+
+    @SneakyThrows
+    private List<File> getFilesFromPhoto(Message message) {
+        List<File> files = new ArrayList<>();
+        List<PhotoSize> photo = message.getPhoto();
+        if (photo != null) {
+            PhotoSize photoSize = photo.stream()
+                    .max(Comparator.comparingInt(PhotoSize::getHeight))
+                    .orElse(null);
+            if (photoSize != null) {
+                GetFile getFile = new GetFile();
+                getFile.setFileId(photoSize.getFileId());
+                String filePath = execute(getFile).getFilePath();
+                File file = downloadFile(filePath, new File("tmp.jpg"));
+                files.add(file);
+            }
+        }
+        return files;
+    }
+
+    private List<File> getFilesFromEntites(Message message) {
+        if (message.hasEntities())
+            return message.getEntities().stream()
+                    .map(e -> {
+                        try {
+                            InputStream inputStream = new URL(e.getUrl()).openStream();
+                            File file = new File("tmp.jpg");
+                            try (FileOutputStream outputStream = new FileOutputStream(file)) {
+                                IOUtils.copy(inputStream, outputStream);
+
+                            }
+                            return file;
+                        } catch (Exception exception) {
+                            exception.printStackTrace();
+                        }
+                        return null;
+                    })
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
+        else return new ArrayList<>();
     }
 
     public void sendMessage(String message) {
