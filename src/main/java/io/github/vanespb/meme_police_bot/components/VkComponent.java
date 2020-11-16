@@ -8,10 +8,13 @@ import com.vk.api.sdk.exceptions.ClientException;
 import com.vk.api.sdk.httpclient.HttpTransportClient;
 import com.vk.api.sdk.objects.messages.Message;
 import com.vk.api.sdk.objects.messages.MessageAttachment;
+import com.vk.api.sdk.objects.messages.MessageAttachmentType;
 import com.vk.api.sdk.objects.photos.Photo;
 import com.vk.api.sdk.objects.photos.PhotoSizes;
 import com.vk.api.sdk.objects.photos.responses.MessageUploadResponse;
 import com.vk.api.sdk.objects.users.UserXtrCounters;
+import com.vk.api.sdk.objects.wall.WallpostAttachmentType;
+import com.vk.api.sdk.objects.wall.WallpostFull;
 import com.vk.api.sdk.queries.messages.MessagesSendQuery;
 import lombok.Getter;
 import lombok.Setter;
@@ -61,20 +64,37 @@ public class VkComponent extends CallbackApiLongPoll implements Runnable {
             String author = getAuthor(message);
             String text = message.getText();
             String telegrammMessageText = text.isEmpty() ?
-                    String.format("From %s", author) :
-                    String.format("<b>%s</b>%n%s", author, text);
+                    String.format("From %s %n", author) :
+                    String.format("<b>%s</b>%n%s %n", author, text);
             List<MessageAttachment> attachments = message.getAttachments();
             if (attachments.isEmpty())
                 tgBot.sendMessage(telegrammMessageText);
             else {
-                tgBot.send(telegrammMessageText, attachments.stream()
-                        .map(this::getPhotoUrl)
-                        .filter(Objects::nonNull)
-                        .collect(Collectors.toList()));
+                if (attachments.stream().anyMatch(a -> a.getType().equals(MessageAttachmentType.PHOTO)))
+                    tgBot.send(telegrammMessageText, attachments.stream()
+                            .filter(a -> a.getType().equals(MessageAttachmentType.PHOTO))
+                            .map(this::getPhotoUrl)
+                            .filter(Objects::nonNull)
+                            .collect(Collectors.toList()));
+                if (attachments.stream().anyMatch(a -> a.getType().equals(MessageAttachmentType.WALL)))
+                    sendRepostToTg(telegrammMessageText, attachments);
             }
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    private void sendRepostToTg(String telegrammMessageText, List<MessageAttachment> attachments) {
+        WallpostFull wallpostFull = attachments.stream()
+                .filter(a -> a.getType().equals(MessageAttachmentType.WALL))
+                .findFirst().get().getWall();
+        String repostText = wallpostFull.getText();
+        List<String> urls = wallpostFull.getAttachments().stream()
+                .filter(a -> a.getType().equals(WallpostAttachmentType.PHOTO))
+                .map(a -> a.getPhoto().getSizes().stream().max(Comparator.comparingInt(PhotoSizes::getHeight)))
+                .map(size -> size.get().getUrl().toString())
+                .collect(Collectors.toList());
+        tgBot.send(telegrammMessageText + repostText, urls);
     }
 
     private String getAuthor(Message message) {
