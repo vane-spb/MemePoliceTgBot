@@ -50,6 +50,7 @@ public class VkComponent extends CallbackApiLongPoll implements Runnable {
         } catch (Exception e) {
             e.printStackTrace();
             error = e.getMessage() + Arrays.toString(e.getStackTrace());
+            run();
         }
     }
 
