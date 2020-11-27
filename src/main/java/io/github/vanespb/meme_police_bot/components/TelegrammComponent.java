@@ -1,5 +1,6 @@
 package io.github.vanespb.meme_police_bot.components;
 
+import io.github.vanespb.meme_police_bot.objects.MessageDto;
 import lombok.*;
 import org.apache.commons.io.IOUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,10 +12,7 @@ import org.telegram.telegrambots.meta.api.methods.ParseMode;
 import org.telegram.telegrambots.meta.api.methods.send.SendMediaGroup;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.methods.send.SendPhoto;
-import org.telegram.telegrambots.meta.api.objects.InputFile;
-import org.telegram.telegrambots.meta.api.objects.Message;
-import org.telegram.telegrambots.meta.api.objects.PhotoSize;
-import org.telegram.telegrambots.meta.api.objects.Update;
+import org.telegram.telegrambots.meta.api.objects.*;
 import org.telegram.telegrambots.meta.api.objects.media.*;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
@@ -23,10 +21,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Component
@@ -56,14 +51,45 @@ public class TelegrammComponent extends TelegramLongPollingBot {
             Message message = update.getMessage();
             String title = message.getChat().getTitle();
             if (title != null && title.contains(channelName)) {
-                List<File> files = new ArrayList<>();
-                files.addAll(getFilesFromEntites(message));
-                files.addAll(getFilesFromPhoto(message));
-                String messageText = message.getText();
-                vkBot.sendMessage(String.format("%s: %n%s",
-                        message.getFrom().getUserName(), messageText != null ? messageText : ""), files);
+                vkBot.sendMessage(convertTelegrammMessageToMessageDto(message));
             }
         }
+    }
+
+    public MessageDto convertTelegrammMessageToMessageDto(Message message) {
+        String userName = message.getFrom().getUserName();
+        MessageDto messageDto = MessageDto.builder()
+                .author(userName)
+                .text(message.getText())
+                .mediaFiles(getFilesFromMessage(message))
+                .build();
+
+        if (message.getForwardFromChat() != null || message.getForwardFrom() != null) {
+            MessageDto.MessageDtoBuilder messageDtoBuilder = MessageDto.builder();
+            if (message.getForwardFromChat() != null)
+                messageDtoBuilder = messageDtoBuilder.author(message.getForwardFromChat().getTitle());
+            if (message.getForwardFrom() != null)
+                messageDtoBuilder = messageDtoBuilder.author(message.getForwardFrom().getUserName());
+            List<String> captions = new ArrayList<>();
+            if (message.getCaption() != null)
+                captions.add(message.getCaption());
+            if (message.getCaptionEntities() != null)
+                captions.addAll(message.getCaptionEntities().stream()
+                        .map(MessageEntity::getText)
+                        .collect(Collectors.toList()));
+            messageDtoBuilder = messageDtoBuilder.text(String.join("\n", captions));
+            messageDto.setReply(messageDtoBuilder.build());
+        }
+
+        return messageDto;
+    }
+
+    public List<File> getFilesFromMessage(Message message) {
+        List<File> files = new ArrayList<>();
+        files.addAll(getFilesFromEntites(message));
+        files.addAll(getFilesFromPhoto(message));
+        files.addAll(getVideosFromMessage(message));
+        return files;
     }
 
     @SneakyThrows
@@ -78,7 +104,7 @@ public class TelegrammComponent extends TelegramLongPollingBot {
                 GetFile getFile = new GetFile();
                 getFile.setFileId(photoSize.getFileId());
                 String filePath = execute(getFile).getFilePath();
-                File file = downloadFile(filePath, new File("tmp.jpg"));
+                File file = downloadFile(filePath, getOutputFile(".jpg"));
                 files.add(file);
             }
         }
@@ -91,7 +117,7 @@ public class TelegrammComponent extends TelegramLongPollingBot {
                     .map(e -> {
                         try {
                             InputStream inputStream = new URL(e.getUrl()).openStream();
-                            File file = new File("tmp.jpg");
+                            File file = getOutputFile("i.jpg");
                             try (FileOutputStream outputStream = new FileOutputStream(file)) {
                                 IOUtils.copy(inputStream, outputStream);
 
@@ -105,6 +131,28 @@ public class TelegrammComponent extends TelegramLongPollingBot {
                     .filter(Objects::nonNull)
                     .collect(Collectors.toList());
         else return new ArrayList<>();
+    }
+
+    //TODO: proceed big files
+    @SneakyThrows
+    private List<File> getVideosFromMessage(Message message) {
+        List<File> files = new ArrayList<>();
+        Video video = message.getVideo();
+        if (video != null) {
+            GetFile getFile = new GetFile();
+            getFile.setFileId(video.getFileId());
+            String filePath = execute(getFile).getFilePath();
+            File file = downloadFile(filePath, getOutputFile(video.getFileName()));
+            files.add(file);
+        }
+        return files;
+    }
+
+    private File getOutputFile(String filename) {
+        String extension = filename.substring(filename.lastIndexOf("."));
+        File file = new File(UUID.randomUUID().toString() + extension);
+        file.deleteOnExit();
+        return file;
     }
 
     public void sendMessage(String message) {

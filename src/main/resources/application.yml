@@ -14,3 +14,6 @@ vkbot:
     groupToken: ${VK_GROUP_TOKEN}
     conferenceId: ${VK_CONFERENCE_ID}
 
+vk-user:
+    id: ${VK_USER_ID}
+    token: ${VK_USER_TOKEN}

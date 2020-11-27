@@ -6,6 +6,8 @@ import com.vk.api.sdk.client.actors.GroupActor;
 import com.vk.api.sdk.exceptions.ApiException;
 import com.vk.api.sdk.exceptions.ClientException;
 import com.vk.api.sdk.httpclient.HttpTransportClient;
+import com.vk.api.sdk.objects.docs.responses.DocUploadResponse;
+import com.vk.api.sdk.objects.docs.responses.SaveResponse;
 import com.vk.api.sdk.objects.messages.Message;
 import com.vk.api.sdk.objects.messages.MessageAttachment;
 import com.vk.api.sdk.objects.messages.MessageAttachmentType;
@@ -16,8 +18,10 @@ import com.vk.api.sdk.objects.users.UserXtrCounters;
 import com.vk.api.sdk.objects.wall.WallpostAttachmentType;
 import com.vk.api.sdk.objects.wall.WallpostFull;
 import com.vk.api.sdk.queries.messages.MessagesSendQuery;
+import io.github.vanespb.meme_police_bot.objects.MessageDto;
 import lombok.Getter;
 import lombok.Setter;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -31,19 +35,23 @@ import java.util.stream.Collectors;
 public class VkComponent extends CallbackApiLongPoll implements Runnable {
     private final VkApiClient vk = new VkApiClient(new HttpTransportClient());
     private final GroupActor actor;
+    private final VkUserComponent userComponent;
     private final Integer conferenceId;
     private final Random random = new Random();
     @Setter
     private TelegrammComponent tgBot;
     private Message lastMessage;
-    private String error;
+    private Exception error;
 
     @Inject
-    public VkComponent(@Value("${vkbot.groupId}") Integer groupId, @Value("${vkbot.groupToken}") String groupToken,
-                       @Value("${vkbot.conferenceId}") Integer conferenceId) {
+    public VkComponent(@Value("${vkbot.groupId}") Integer groupId,
+                       @Value("${vkbot.groupToken}") String groupToken,
+                       @Value("${vkbot.conferenceId}") Integer conferenceId,
+                       VkUserComponent userComponent) {
         super(new VkApiClient(new HttpTransportClient()), new GroupActor(groupId, groupToken));
         actor = new GroupActor(groupId, groupToken);
         this.conferenceId = conferenceId;
+        this.userComponent = userComponent;
     }
 
     @Override
@@ -52,7 +60,7 @@ public class VkComponent extends CallbackApiLongPoll implements Runnable {
             super.run();
         } catch (Exception e) {
             e.printStackTrace();
-            error = e.getMessage() + Arrays.toString(e.getStackTrace());
+            error = e;
             run();
         }
     }
@@ -84,17 +92,42 @@ public class VkComponent extends CallbackApiLongPoll implements Runnable {
         }
     }
 
+    //TODO: work with case when attachments number > 10
+    public void sendMessage(MessageDto message) {
+        try {
+            MessagesSendQuery sendQuery = vk.messages().send(actor)
+                    .message(message.getFullText())
+                    .attachment(message.getAllMediaFiles().stream().map(f -> {
+                        try {
+                            return uploadFile(f);
+                        } catch (ClientException | ApiException e) {
+                            e.printStackTrace();
+                        }
+                        return null;
+                    }).collect(Collectors.joining(",")))
+                    .peerId(conferenceId)
+                    .randomId(random.nextInt());
+            sendQuery.execute();
+        } catch (ApiException | ClientException e) {
+            e.printStackTrace();
+            error = e;
+        }
+    }
+
     private void sendRepostToTg(String telegrammMessageText, List<MessageAttachment> attachments) {
-        WallpostFull wallpostFull = attachments.stream()
+        Optional<MessageAttachment> messageAttachment = attachments.stream()
                 .filter(a -> a.getType().equals(MessageAttachmentType.WALL))
-                .findFirst().get().getWall();
-        String repostText = wallpostFull.getText();
-        List<String> urls = wallpostFull.getAttachments().stream()
-                .filter(a -> a.getType().equals(WallpostAttachmentType.PHOTO))
-                .map(a -> a.getPhoto().getSizes().stream().max(Comparator.comparingInt(PhotoSizes::getHeight)))
-                .map(size -> size.get().getUrl().toString())
-                .collect(Collectors.toList());
-        tgBot.send(telegrammMessageText + repostText, urls);
+                .findFirst();
+        if (messageAttachment.isPresent()) {
+            WallpostFull wallpostFull = messageAttachment.get().getWall();
+            String repostText = wallpostFull.getText();
+            List<String> urls = wallpostFull.getAttachments().stream()
+                    .filter(a -> a.getType().equals(WallpostAttachmentType.PHOTO))
+                    .map(a -> a.getPhoto().getSizes().stream().max(Comparator.comparingInt(PhotoSizes::getHeight)))
+                    .map(size -> size.get().getUrl().toString())
+                    .collect(Collectors.toList());
+            tgBot.send(telegrammMessageText + repostText, urls);
+        }
     }
 
     private String getAuthor(Message message) {
@@ -121,22 +154,28 @@ public class VkComponent extends CallbackApiLongPoll implements Runnable {
     }
 
     public Integer sendMessage(String message, List<File> files) {
+        MessagesSendQuery sendQuery = vk.messages().send(actor)
+                .message(message)
+                .attachment(files.stream().map(f -> {
+                    try {
+                        return uploadFile(f);
+                    } catch (ClientException | ApiException e) {
+                        e.printStackTrace();
+                    }
+                    return null;
+                }).collect(Collectors.joining(",")))
+                .peerId(conferenceId)
+                .randomId(random.nextInt());
         try {
-            MessagesSendQuery sendQuery = vk.messages().send(actor)
-                    .message(message)
-                    .peerId(conferenceId)
-                    .randomId(random.nextInt());
-            for (File photo : files) {
-                sendQuery = sendQuery.attachment(uploadFile(photo));
-            }
             return sendQuery.execute();
         } catch (ApiException | ClientException e) {
             e.printStackTrace();
+            error = e;
         }
         return null;
     }
 
-    public String uploadFile(File file) throws ClientException, ApiException {
+    public String uploadPhoto(File file) throws ClientException, ApiException {
         String uploadUrl = vk.photos().getMessagesUploadServer(actor).execute().getUploadUrl().toString();
         MessageUploadResponse uploadResponse = vk.upload()
                 .photoMessage(uploadUrl, file)
@@ -145,7 +184,33 @@ public class VkComponent extends CallbackApiLongPoll implements Runnable {
                 .server(uploadResponse.getServer())
                 .hash(uploadResponse.getHash())
                 .execute().get(0);
+        file.delete();
         return String.format("photo%d_%d", photo.getOwnerId(), photo.getId());
     }
 
+    public String uploadDocument(File file) throws ClientException, ApiException {
+        String uploadUrl = vk.docs().getMessagesUploadServer(actor).peerId(conferenceId).execute().getUploadUrl().toString();
+        DocUploadResponse uploadResponse = vk.upload()
+                .doc(uploadUrl, file)
+                .execute();
+        SaveResponse document = vk.docs().save(actor, uploadResponse.getFile())
+                .execute();
+        file.delete();
+        return String.format("doc%d_%d", document.getDoc().getOwnerId(), document.getDoc().getId());
+    }
+
+    public String uploadFile(File file) throws ClientException, ApiException {
+        if (file.getName().contains(".jpg")) {
+            return uploadPhoto(file);
+        }
+        if (StringUtils.containsIgnoreCase(file.getName(), ".MP4")) {
+            return uploadVideo(file);
+        }
+        file.delete();
+        return uploadDocument(file);
+    }
+
+    private String uploadVideo(File file) throws ClientException, ApiException {
+        return userComponent.uploadVideo(file);
+    }
 }

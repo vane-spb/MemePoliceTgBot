@@ -10,6 +10,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Objects;
 
 @RestController
@@ -31,19 +33,23 @@ public class SystemInfoRestController {
 
     @GetMapping("vk")
     public String getVk() {
-        return new JSONObject()
+        JSONObject jsonAnswer = new JSONObject()
                 .put("token", Objects.nonNull(vk.getActor().getAccessToken()))
                 .put("group_id", vk.getActor().getGroupId())
                 .put("id", vk.getActor().getId())
                 .put("vk-version", vk.getVk().getVersion())
-                .put("error", vk.getError())
                 .put("tgBot", vk.getTgBot().getBotUsername())
-                .put("last_message", vk.getLastMessage()).toString();
+                .put("last_message", vk.getLastMessage());
+        Exception vkError = vk.getError();
+        if (vkError != null)
+            jsonAnswer.put("last_vk_error", vkError.getMessage() + Arrays.toString(vkError.getStackTrace()));
+
+        return jsonAnswer.toString();
     }
 
     @PostMapping("send_to_vk")
     public String sendToVk(@RequestParam(value = "message") String message, @RequestParam(value = "content") String url) {
-        vk.sendMessage(message, null);
+        vk.sendMessage(message, new ArrayList<>());
         return "Done!";
     }
 
