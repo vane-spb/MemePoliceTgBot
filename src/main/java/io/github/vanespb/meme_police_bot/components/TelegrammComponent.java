@@ -142,7 +142,7 @@ public class TelegrammComponent extends TelegramLongPollingBot {
             GetFile getFile = new GetFile();
             getFile.setFileId(video.getFileId());
             String filePath = execute(getFile).getFilePath();
-            File file = downloadFile(filePath, getOutputFile(video.getFileName()));
+            File file = downloadFile(filePath, getOutputFile("video.mp4"));
             files.add(file);
         }
         return files;
