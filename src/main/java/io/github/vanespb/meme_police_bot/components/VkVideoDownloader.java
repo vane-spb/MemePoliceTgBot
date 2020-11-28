@@ -1,6 +1,7 @@
 package io.github.vanespb.meme_police_bot.components;
 
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 import org.jsoup.Connection;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -11,6 +12,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+@Slf4j
 @Component
 public class VkVideoDownloader {
     public static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.66 Safari/537.36";
@@ -31,6 +33,7 @@ public class VkVideoDownloader {
     }
 
     public void firstStepAuthorisation(String email, String password) throws IOException {
+        log.info("logging in vk on " + SITE_URL);
         Connection.Response loginForm = Jsoup.connect(SITE_URL)
                 .method(Connection.Method.GET)
                 .userAgent(USER_AGENT)
@@ -50,6 +53,7 @@ public class VkVideoDownloader {
     }
 
     public void secondAuthorisationStep(String code) throws IOException {
+        log.info("Second auth step on " + SITE_URL + secondAuthorisationStepLink);
         this.code = code;
         Connection.Response response = Jsoup.connect(SITE_URL + secondAuthorisationStepLink)
                 .userAgent(USER_AGENT)
@@ -68,6 +72,7 @@ public class VkVideoDownloader {
             captchaSid = null;
         } else {
             captchaSid = response.parse().select("input").attr("value");
+            log.info("we need captcha " + captchaSid);
         }
     }
 
