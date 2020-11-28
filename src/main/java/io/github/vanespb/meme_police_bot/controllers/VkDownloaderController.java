@@ -42,7 +42,6 @@ public class VkDownloaderController {
     @PutMapping
     public String login(@RequestParam String email,
                         @RequestParam String password) throws IOException {
-        vkVideoDownloader.firstStepAuthorisation(email, password);
-        return "logged in";
+        return vkVideoDownloader.firstStepAuthorisation(email, password);
     }
 }

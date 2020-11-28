@@ -32,7 +32,7 @@ public class VkVideoDownloader {
         firstStepAuthorisation(email, password);
     }
 
-    public void firstStepAuthorisation(String email, String password) throws IOException {
+    public String firstStepAuthorisation(String email, String password) throws IOException {
         log.info("logging in vk on " + SITE_URL);
         Connection.Response loginForm = Jsoup.connect(SITE_URL)
                 .method(Connection.Method.GET)
@@ -50,9 +50,10 @@ public class VkVideoDownloader {
 
         secondAuthorisationStepLink = loginResponse.parse().select("form").attr("action");
         cookies = loginResponse.cookies();
+        return loginResponse.body();
     }
 
-    public void secondAuthorisationStep(String code) throws IOException {
+    public String secondAuthorisationStep(String code) throws IOException {
         log.info("Second auth step on " + SITE_URL + secondAuthorisationStepLink);
         this.code = code;
         Connection.Response response = Jsoup.connect(SITE_URL + secondAuthorisationStepLink)
@@ -64,6 +65,7 @@ public class VkVideoDownloader {
                 .method(Connection.Method.POST)
                 .execute();
         checkIfCaptchaNeeded(response);
+        return response.body();
     }
 
     private void checkIfCaptchaNeeded(Connection.Response response) throws IOException {
@@ -76,8 +78,8 @@ public class VkVideoDownloader {
         }
     }
 
-    public void proceedCaptcha(String code) throws IOException {
-        if (captchaSid == null) return;
+    public String proceedCaptcha(String code) throws IOException {
+        if (captchaSid == null) return "no need";
         Connection.Response response = Jsoup.connect(SITE_URL + secondAuthorisationStepLink)
                 .userAgent(USER_AGENT)
                 .referrer(SITE_URL + secondAuthorisationStepLink)
@@ -93,6 +95,7 @@ public class VkVideoDownloader {
                 .execute();
         cookies = new HashMap<>(response.cookies());
         checkIfCaptchaNeeded(response);
+        return response.body();
     }
 
     public String getVideoUrl(String video) throws IOException {
