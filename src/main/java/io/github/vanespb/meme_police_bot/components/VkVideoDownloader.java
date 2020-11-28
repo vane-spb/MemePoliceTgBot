@@ -51,7 +51,7 @@ public class VkVideoDownloader {
 
     public void secondAuthorisationStep(String code) throws IOException {
         this.code = code;
-        Connection.Response response = Jsoup.connect("https://m.vk.com" + secondAuthorisationStepLink)
+        Connection.Response response = Jsoup.connect(SITE_URL + secondAuthorisationStepLink)
                 .userAgent(USER_AGENT)
                 .cookies(cookies)
                 .followRedirects(true)
@@ -73,9 +73,9 @@ public class VkVideoDownloader {
 
     public void proceedCaptcha(String code) throws IOException {
         if (captchaSid == null) return;
-        Connection.Response response = Jsoup.connect("https://m.vk.com" + secondAuthorisationStepLink)
+        Connection.Response response = Jsoup.connect(SITE_URL + secondAuthorisationStepLink)
                 .userAgent(USER_AGENT)
-                .referrer("https://m.vk.com" + secondAuthorisationStepLink)
+                .referrer(SITE_URL + secondAuthorisationStepLink)
                 .cookies(cookies)
                 .followRedirects(true)
                 .data("captcha_sid", captchaSid)
