@@ -7,41 +7,48 @@ import org.springframework.web.bind.annotation.*;
 import java.io.IOException;
 
 @RestController
-@RequestMapping("/downloader")
 public class VkDownloaderController {
     @Autowired
     VkVideoDownloader vkVideoDownloader;
 
-    @PostMapping
-    public String configuration(@RequestParam String code) {
-        if (vkVideoDownloader.isLoggedIn()) return "everything ok, i did not need codes";
-        try {
-            if (vkVideoDownloader.getCaptchaSid() == null)
-                vkVideoDownloader.secondAuthorisationStep(code);
-            else
-                vkVideoDownloader.proceedCaptcha(code);
-            if (vkVideoDownloader.getCaptchaSid() == null)
-                return "logged in successfully";
-            else
-                return String.format("Now we need captcha, look at http://vk.com/captcha.php?sid=%s", vkVideoDownloader.getCaptchaSid());
-        } catch (IOException exception) {
-            exception.printStackTrace();
-            return "error on login";
-        }
-
+    @PostMapping("/d_execute")
+    public String execute() throws IOException {
+        return vkVideoDownloader.execute();
     }
 
-    @GetMapping
+    @GetMapping("/downloader")
     public String status() {
-        if (vkVideoDownloader.isLoggedIn())
-            return "Vk downloader is ready";
-        else
-            return "please give me secret code";
+        return String.format("logged = %s, captcha = http://vk.com/captcha.php?sid=%s",
+                vkVideoDownloader.isLoggedIn(),
+                vkVideoDownloader.getCaptchaSid());
     }
 
-    @PutMapping
-    public String login(@RequestParam String email,
-                        @RequestParam String password) throws IOException {
-        return vkVideoDownloader.firstStepAuthorisation(email, password);
+    @PutMapping("/ep")
+    public String setEmailAndPassword(@RequestParam String email,
+                                      @RequestParam String password) throws IOException {
+        StringBuilder stringBuilder = new StringBuilder();
+
+        if (email != null) {
+            vkVideoDownloader.setEmail(email);
+            stringBuilder.append("set email\n");
+        }
+        if (password != null) {
+            vkVideoDownloader.setPassword(password);
+            stringBuilder.append("set password\n");
+        }
+        stringBuilder.append("done!");
+        return stringBuilder.toString();
+    }
+
+    @PutMapping("/code")
+    public String setCode(@RequestParam String code) throws IOException {
+        vkVideoDownloader.setCode(code);
+        return "done!";
+    }
+
+    @PutMapping("/captcha")
+    public String setCaptcha(@RequestParam String captcha) throws IOException {
+        vkVideoDownloader.setCaptcha(captcha);
+        return "done!";
     }
 }

@@ -1,6 +1,7 @@
 package io.github.vanespb.meme_police_bot.components;
 
 import lombok.Getter;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.jsoup.Connection;
 import org.jsoup.Jsoup;
@@ -8,6 +9,7 @@ import org.jsoup.nodes.Document;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import javax.annotation.PostConstruct;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
@@ -17,46 +19,88 @@ import java.util.Map;
 public class VkVideoDownloader {
     public static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.66 Safari/537.36";
     public static final String SITE_URL = "https://m.vk.com/";
+
+    //technical cache
+    private Map<String, String> cookies;
+    private String authorisationLink;
+
+    //login data
+    @Setter
+    private String email;
+    @Setter
+    private String password;
+    @Setter
+    private String code;
+    @Setter
+    private String captcha;
+
+    //status
     @Getter
     private boolean loggedIn = false;
-    private Map<String, String> cookies;
-
-    private String secondAuthorisationStepLink;
-    private String code;
+    @Getter
+    private boolean firstStepPassed = false;
     @Getter
     private String captchaSid = null;
 
 
     public VkVideoDownloader(@Value("${vk-user.email}") String email,
                              @Value("${vk-user.password}") String password) throws IOException {
-        firstStepAuthorisation(email, password);
+        this.email = email;
+        this.password = password;
     }
 
-    public String firstStepAuthorisation(String email, String password) throws IOException {
-        log.info("logging in vk on " + SITE_URL);
-        Connection.Response loginForm = Jsoup.connect(SITE_URL)
+    @PostConstruct
+    public void tryToLoginOnStart() throws IOException {
+        Connection.Response response = getCookies();
+        if (!checkIfCaptchaNeeded(response)) {
+            firstStepAuthorisation(email, password);
+        }
+    }
+
+    public Connection.Response getCookies() throws IOException {
+        Connection.Response response = Jsoup.connect(SITE_URL)
                 .method(Connection.Method.GET)
                 .userAgent(USER_AGENT)
                 .execute();
-        String loginActionLink = loginForm.parse().select("form").attr("action");
-        Connection.Response loginResponse = Jsoup.connect(loginActionLink)
+        saveActionLink(response);
+        cookies = new HashMap<>(response.cookies());
+        return response;
+    }
+
+    private void saveActionLink(Connection.Response loginResponse) throws IOException {
+        authorisationLink = loginResponse.parse().select("form").attr("action");
+    }
+
+    private boolean checkIfCaptchaNeeded(Connection.Response response) throws IOException {
+        boolean hasCaptcha = response.body().contains("name=\"captcha_key\"");
+        if (hasCaptcha) {
+            captchaSid = response.parse().select("input").attr("value");
+            log.info("we need captcha " + captchaSid);
+        } else captchaSid = null;
+        return hasCaptcha;
+    }
+
+    public Connection.Response firstStepAuthorisation(String email, String password) throws IOException {
+        Connection.Response loginResponse = Jsoup.connect(authorisationLink)
                 .userAgent(USER_AGENT)
-                .cookies(loginForm.cookies())
+                .cookies(cookies)
                 .followRedirects(true)
                 .data("email", email)
                 .data("pass", password)
                 .method(Connection.Method.POST)
                 .execute();
 
-        secondAuthorisationStepLink = loginResponse.parse().select("form").attr("action");
+        saveActionLink(loginResponse);
         cookies = loginResponse.cookies();
-        return loginResponse.body();
+        firstStepPassed = true;
+        return loginResponse;
     }
 
-    public String secondAuthorisationStep(String code) throws IOException {
-        log.info("Second auth step on " + SITE_URL + secondAuthorisationStepLink);
+
+    public Connection.Response secondAuthorisationStep(String code) throws IOException {
+        log.info("Second auth step on " + SITE_URL + authorisationLink);
         this.code = code;
-        Connection.Response response = Jsoup.connect(SITE_URL + secondAuthorisationStepLink)
+        Connection.Response response = Jsoup.connect(SITE_URL + authorisationLink)
                 .userAgent(USER_AGENT)
                 .cookies(cookies)
                 .followRedirects(true)
@@ -64,25 +108,15 @@ public class VkVideoDownloader {
                 .data("remember", "1")
                 .method(Connection.Method.POST)
                 .execute();
-        checkIfCaptchaNeeded(response);
-        return response.body();
+        if (!checkIfCaptchaNeeded(response)) loggedIn = true;
+        return response;
     }
 
-    private void checkIfCaptchaNeeded(Connection.Response response) throws IOException {
-        if (response.url().toString().equals("https://m.vk.com/feed")) {
-            loggedIn = true;
-            captchaSid = null;
-        } else {
-            captchaSid = response.parse().select("input").attr("value");
-            log.info("we need captcha " + captchaSid);
-        }
-    }
-
-    public String proceedCaptcha(String code) throws IOException {
-        if (captchaSid == null) return "no need";
-        Connection.Response response = Jsoup.connect(SITE_URL + secondAuthorisationStepLink)
+    public Connection.Response proceedCaptcha(String code) throws IOException {
+        if (captchaSid == null) return null;
+        Connection.Response response = Jsoup.connect(SITE_URL + authorisationLink)
                 .userAgent(USER_AGENT)
-                .referrer(SITE_URL + secondAuthorisationStepLink)
+                .referrer(SITE_URL + authorisationLink)
                 .cookies(cookies)
                 .followRedirects(true)
                 .data("captcha_sid", captchaSid)
@@ -95,7 +129,8 @@ public class VkVideoDownloader {
                 .execute();
         cookies = new HashMap<>(response.cookies());
         checkIfCaptchaNeeded(response);
-        return response.body();
+        loggedIn = true;
+        return response;
     }
 
     public String getVideoUrl(String video) throws IOException {
@@ -108,7 +143,24 @@ public class VkVideoDownloader {
                 .followRedirects(true)
                 .get();
 
-        return document.select("video").select("source").first().attr("src");
+        return document.select("video").select("source").get(1).attr("src");
     }
 
+    public String execute() throws IOException {
+        if (authorisationLink == null)
+            tryToLoginOnStart();
+        if (captchaSid != null && captcha == null)
+            return "captcha needed";
+        if (!loggedIn && code == null)
+            return "code needed";
+        if (!firstStepPassed)
+            firstStepAuthorisation(email, password);
+        if (captcha == null)
+            secondAuthorisationStep(code);
+        else
+            proceedCaptcha(captcha);
+        if (captcha != null)
+            return "captcha needed";
+        return "done!";
+    }
 }
