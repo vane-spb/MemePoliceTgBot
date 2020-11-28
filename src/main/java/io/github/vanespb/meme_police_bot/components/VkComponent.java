@@ -27,6 +27,7 @@ import org.springframework.stereotype.Component;
 
 import javax.inject.Inject;
 import java.io.File;
+import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -36,6 +37,7 @@ public class VkComponent extends CallbackApiLongPoll implements Runnable {
     private final VkApiClient vk = new VkApiClient(new HttpTransportClient());
     private final GroupActor actor;
     private final VkUserComponent userComponent;
+    private final VkVideoDownloader videoDownloader;
     private final Integer conferenceId;
     private final Random random = new Random();
     @Setter
@@ -47,11 +49,13 @@ public class VkComponent extends CallbackApiLongPoll implements Runnable {
     public VkComponent(@Value("${vkbot.groupId}") Integer groupId,
                        @Value("${vkbot.groupToken}") String groupToken,
                        @Value("${vkbot.conferenceId}") Integer conferenceId,
-                       VkUserComponent userComponent) {
+                       VkUserComponent userComponent,
+                       VkVideoDownloader videoDownloader) {
         super(new VkApiClient(new HttpTransportClient()), new GroupActor(groupId, groupToken));
         actor = new GroupActor(groupId, groupToken);
         this.conferenceId = conferenceId;
         this.userComponent = userComponent;
+        this.videoDownloader = videoDownloader;
     }
 
     @Override
@@ -78,12 +82,31 @@ public class VkComponent extends CallbackApiLongPoll implements Runnable {
             if (attachments.isEmpty())
                 tgBot.sendMessage(telegrammMessageText);
             else {
-                if (attachments.stream().anyMatch(a -> a.getType().equals(MessageAttachmentType.PHOTO)))
-                    tgBot.send(telegrammMessageText, attachments.stream()
-                            .filter(a -> a.getType().equals(MessageAttachmentType.PHOTO))
-                            .map(this::getPhotoUrl)
+                List<String> urls = new ArrayList<>();
+                List<String> photoUrls = attachments.stream()
+                        .filter(a -> a.getType().equals(MessageAttachmentType.PHOTO))
+                        .map(this::getPhotoUrl)
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toList());
+                urls.addAll(photoUrls);
+                if (videoDownloader.isLoggedIn()) {
+                    List<String> videoUrls = attachments.stream()
+                            .filter(a -> a.getType().equals(MessageAttachmentType.VIDEO))
+                            .map(MessageAttachment::getVideo)
+                            .map(v -> String.format("video%s_%s", v.getOwnerId(), v.getId()))
+                            .map(v -> {
+                                try {
+                                    return videoDownloader.getVideoUrl(v);
+                                } catch (IOException exception) {
+                                    exception.printStackTrace();
+                                }
+                                return null;
+                            })
                             .filter(Objects::nonNull)
-                            .collect(Collectors.toList()));
+                            .collect(Collectors.toList());
+                    urls.addAll(videoUrls);
+                    tgBot.send(telegrammMessageText, urls);
+                }
                 if (attachments.stream().anyMatch(a -> a.getType().equals(MessageAttachmentType.WALL)))
                     sendRepostToTg(telegrammMessageText, attachments);
             }

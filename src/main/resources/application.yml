@@ -17,3 +17,5 @@ vkbot:
 vk-user:
     id: ${VK_USER_ID}
     token: ${VK_USER_TOKEN}
+    email: ${VK_USER_EMAIL}
+    password: ${VK_USER_PASSWORD}

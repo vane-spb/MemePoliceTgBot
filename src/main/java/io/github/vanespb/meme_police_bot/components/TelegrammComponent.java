@@ -2,16 +2,16 @@ package io.github.vanespb.meme_police_bot.components;
 
 import io.github.vanespb.meme_police_bot.objects.MessageDto;
 import lombok.*;
+import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.GetFile;
 import org.telegram.telegrambots.meta.api.methods.ParseMode;
-import org.telegram.telegrambots.meta.api.methods.send.SendMediaGroup;
-import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
-import org.telegram.telegrambots.meta.api.methods.send.SendPhoto;
+import org.telegram.telegrambots.meta.api.methods.send.*;
 import org.telegram.telegrambots.meta.api.objects.*;
 import org.telegram.telegrambots.meta.api.objects.media.*;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
@@ -174,13 +174,50 @@ public class TelegrammComponent extends TelegramLongPollingBot {
         } else {
             if (fileURLs.size() == 1) {
                 try {
-                    sendPhoto(message, fileURLs.get(0));
+                    String fileUrl = fileURLs.get(0);
+                    if (StringUtils.containsIgnoreCase(fileUrl, ".jpg")) sendPhoto(message, fileUrl);
+                    else {
+                        if (StringUtils.containsIgnoreCase(fileUrl, ".mp4")) sendVideo(message, fileUrl);
+                        else sendFile(message, fileUrl);
+                    }
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
             } else {
                 sendMediaGroup(message, fileURLs);
             }
+        }
+    }
+
+    private void sendFile(String message, String fileUrl) throws IOException {
+        InputStream inputStream = new URL(fileUrl).openStream();
+
+        SendDocument sendDocument = SendDocument.builder()
+                .chatId(channelId)
+                .document(new InputFile(inputStream, FilenameUtils.getName(fileUrl)))
+                .parseMode(ParseMode.HTML)
+                .caption(message)
+                .build();
+        try {
+            execute(sendDocument);
+        } catch (TelegramApiException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void sendVideo(String message, String fileUrl) throws IOException {
+        InputStream inputStream = new URL(fileUrl).openStream();
+
+        SendVideo sendVideo = SendVideo.builder()
+                .chatId(channelId)
+                .video(new InputFile(inputStream, FilenameUtils.getName(fileUrl)))
+                .parseMode(ParseMode.HTML)
+                .caption(message)
+                .build();
+        try {
+            execute(sendVideo);
+        } catch (TelegramApiException e) {
+            e.printStackTrace();
         }
     }
 

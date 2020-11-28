@@ -74,6 +74,7 @@ class VkComponentTest {
                 Integer.parseInt(env.get("VK_GROUP_ID")),
                 env.get("VK_GROUP_TOKEN"),
                 Integer.parseInt(env.get("VK_CONFERENCE_ID")),
-                VkUserComponentTest.getVkUserComponent());
+                VkUserComponentTest.getVkUserComponent(),
+                VkVideoDownloaderTest.getVkVideoDownloader());
     }
 }
