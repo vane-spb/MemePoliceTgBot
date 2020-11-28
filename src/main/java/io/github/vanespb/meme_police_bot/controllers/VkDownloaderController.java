@@ -14,9 +14,16 @@ public class VkDownloaderController {
 
     @PostMapping
     public String configuration(@RequestParam String code) {
+        if (vkVideoDownloader.isLoggedIn()) return "everything ok, i did not need codes";
         try {
-            vkVideoDownloader.secondAuthorisationStep(code);
-            return "logged in successfully";
+            if (vkVideoDownloader.getCaptchaSid() == null)
+                vkVideoDownloader.secondAuthorisationStep(code);
+            else
+                vkVideoDownloader.proceedCaptcha(code);
+            if (vkVideoDownloader.getCaptchaSid() == null)
+                return "logged in successfully";
+            else
+                return String.format("Now we need captcha, look at http://vk.com/captcha.php?sid=%s", vkVideoDownloader.getCaptchaSid());
         } catch (IOException exception) {
             exception.printStackTrace();
             return "error on login";
