@@ -15,7 +15,9 @@ import java.util.List;
 public class MessageDto {
     private String author;
     private String text;
+    @Builder.Default
     private List<String> media = new ArrayList<>();
+    @Builder.Default
     private List<File> mediaFiles = new ArrayList<>();
     private MessageDto reply;
     private PostDto repost;

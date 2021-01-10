@@ -1,166 +1,123 @@
 package io.github.vanespb.meme_police_bot.components;
 
+import io.github.vanespb.meme_police_bot.objects.models.CookieModel;
+import io.github.vanespb.meme_police_bot.objects.repositories.CookiesRepository;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.jsoup.Connection;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.PostConstruct;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Component
 public class VkVideoDownloader {
-    public static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.66 Safari/537.36";
+    public static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.88 Safari/537.36";
     public static final String SITE_URL = "https://m.vk.com/";
-
-    //technical cache
     private Map<String, String> cookies;
-    private String authorisationLink;
-
-    //login data
+    @Autowired
+    CookiesRepository cookiesRepository;
+    //login cache
+    private Map<String, String> cookiesTemp;
+    private String authorisationLink = null;
     @Setter
-    private String email;
+    private String captcha1 = null;
     @Setter
-    private String password;
-    @Setter
-    private String code;
-    @Setter
-    private String captcha;
-
-    //status
+    private String captcha2 = null;
     @Getter
-    private boolean loggedIn = false;
+    private String captchaSid1 = null;
     @Getter
-    private boolean firstStepPassed = false;
-    @Getter
-    private String captchaSid = null;
-
-
-    public VkVideoDownloader(@Value("${vk-user.email}") String email,
-                             @Value("${vk-user.password}") String password) throws IOException {
-        this.email = email;
-        this.password = password;
-    }
+    private String captchaSid2 = null;
 
     @PostConstruct
-    public void tryToLoginOnStart() throws IOException {
-        Connection.Response response = getCookies();
-        if (!checkIfCaptchaNeeded(response)) {
-            firstStepAuthorisation(email, password);
-        }
+    public void getCookies() {
+        cookies = cookiesRepository.findAll().stream()
+                .collect(Collectors.toMap(CookieModel::getKey, CookieModel::getValue));
     }
 
-    public Connection.Response getCookies() throws IOException {
+    @Transactional
+    public void setCookies() {
+        cookies = cookiesTemp;
+        cookiesTemp = null;
+        authorisationLink = null;
+        cookiesRepository.deleteAll();
+        cookiesRepository.saveAll(cookies.entrySet().stream()
+                .map(it -> new CookieModel(it.getKey(), it.getValue()))
+                .collect(Collectors.toList()));
+    }
+
+
+    public String loadLoginPage() throws IOException {
         Connection.Response response = Jsoup.connect(SITE_URL)
+                .userAgent(USER_AGENT)
+                .followRedirects(true)
                 .method(Connection.Method.GET)
-                .userAgent(USER_AGENT)
                 .execute();
-        saveActionLink(response);
-        cookies = new HashMap<>(response.cookies());
-        return response;
+        cookiesTemp = new HashMap<>(response.cookies());
+        Document parse = response.parse();
+        authorisationLink = parse.select("form").attr("action");
+        captchaSid1 = parse.select("input").attr("value");
+        return response.body();
     }
 
-    private void saveActionLink(Connection.Response loginResponse) throws IOException {
-        authorisationLink = loginResponse.parse().select("form").attr("action");
-    }
-
-    private boolean checkIfCaptchaNeeded(Connection.Response response) throws IOException {
-        boolean hasCaptcha = response.body().contains("name=\"captcha_key\"");
-        if (hasCaptcha) {
-            captchaSid = response.parse().select("input").attr("value");
-            log.info("we need captcha " + captchaSid);
-        } else captchaSid = null;
-        return hasCaptcha;
-    }
-
-    public Connection.Response firstStepAuthorisation(String email, String password) throws IOException {
-        Connection.Response loginResponse = Jsoup.connect(authorisationLink)
+    public String firstStepAuthorisation(String email, String password) throws IOException {
+        Connection connection = Jsoup.connect(authorisationLink)
                 .userAgent(USER_AGENT)
-                .cookies(cookies)
+                .cookies(cookiesTemp)
                 .followRedirects(true)
                 .data("email", email)
                 .data("pass", password)
-                .method(Connection.Method.POST)
-                .execute();
+                .method(Connection.Method.POST);
+        if (captchaSid1 != null && captcha2 != null)
+            connection
+                    .data("captcha_key", captcha1)
+                    .data("captcha_sid", captchaSid1);
+        Connection.Response loginResponse = connection.execute();
 
-        saveActionLink(loginResponse);
-        cookies = loginResponse.cookies();
-        firstStepPassed = true;
-        return loginResponse;
+        authorisationLink = loginResponse.parse().select("form").attr("action");
+        captchaSid2 = loginResponse.parse().select("input").attr("value");
+        cookiesTemp = loginResponse.cookies();
+        return loginResponse.body();
     }
 
 
-    public Connection.Response secondAuthorisationStep(String code) throws IOException {
-        log.info("Second auth step on " + SITE_URL + authorisationLink);
-        this.code = code;
-        Connection.Response response = Jsoup.connect(SITE_URL + authorisationLink)
+    public String secondAuthorisationStep(String code) throws IOException {
+        Connection connection = Jsoup.connect(SITE_URL + authorisationLink)
                 .userAgent(USER_AGENT)
-                .cookies(cookies)
+                .referrer(SITE_URL + authorisationLink)
+                .cookies(cookiesTemp)
                 .followRedirects(true)
                 .data("code", code)
                 .data("remember", "1")
                 .method(Connection.Method.POST)
-                .execute();
-        if (!checkIfCaptchaNeeded(response)) loggedIn = true;
-        return response;
-    }
-
-    public Connection.Response proceedCaptcha(String code) throws IOException {
-        if (captchaSid == null) return null;
-        Connection.Response response = Jsoup.connect(SITE_URL + authorisationLink)
-                .userAgent(USER_AGENT)
-                .referrer(SITE_URL + authorisationLink)
-                .cookies(cookies)
-                .followRedirects(true)
-                .data("captcha_sid", captchaSid)
-                .data("code", this.code)
-                .data("remember", "1")
-                .data("captcha_key", code)
-                .method(Connection.Method.POST)
                 .ignoreContentType(true)
-                .ignoreHttpErrors(true)
+                .ignoreHttpErrors(true);
+        if (captcha2 != null && captchaSid2 != null)
+            connection = connection
+                    .data("captcha_key", captcha2)
+                    .data("captcha_sid", captchaSid2);
+        Connection.Response response = connection
                 .execute();
-        cookies = new HashMap<>(response.cookies());
-        checkIfCaptchaNeeded(response);
-        loggedIn = true;
-        return response;
+        cookiesTemp = new HashMap<>(response.cookies());
+        return response.body();
     }
 
     public String getVideoUrl(String video) throws IOException {
-        if (!loggedIn) return null;
         String videoUrl = SITE_URL + video;
-
         Document document = Jsoup.connect(videoUrl)
                 .userAgent(USER_AGENT)
                 .cookies(cookies)
                 .followRedirects(true)
                 .get();
-
         return document.select("video").select("source").get(1).attr("src");
-    }
-
-    public String execute() throws IOException {
-        if (authorisationLink == null)
-            tryToLoginOnStart();
-        if (captchaSid != null && captcha == null)
-            return "captcha needed";
-        if (!loggedIn && code == null)
-            return "code needed";
-        if (!firstStepPassed)
-            firstStepAuthorisation(email, password);
-        if (captcha == null)
-            secondAuthorisationStep(code);
-        else
-            proceedCaptcha(captcha);
-        if (captcha != null)
-            return "captcha needed";
-        return "done!";
     }
 }

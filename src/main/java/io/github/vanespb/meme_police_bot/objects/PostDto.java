@@ -14,7 +14,9 @@ import java.util.List;
 public class PostDto {
     private String publicName;
     private String text;
+    @Builder.Default
     private List<String> media = new ArrayList<>();
+    @Builder.Default
     private List<File> mediaFiles = new ArrayList<>();
 
     public void addMedia(String s) {

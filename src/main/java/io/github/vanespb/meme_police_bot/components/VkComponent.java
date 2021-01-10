@@ -8,6 +8,7 @@ import com.vk.api.sdk.exceptions.ClientException;
 import com.vk.api.sdk.httpclient.HttpTransportClient;
 import com.vk.api.sdk.objects.docs.responses.DocUploadResponse;
 import com.vk.api.sdk.objects.docs.responses.SaveResponse;
+import com.vk.api.sdk.objects.messages.ForeignMessage;
 import com.vk.api.sdk.objects.messages.Message;
 import com.vk.api.sdk.objects.messages.MessageAttachment;
 import com.vk.api.sdk.objects.messages.MessageAttachmentType;
@@ -15,7 +16,8 @@ import com.vk.api.sdk.objects.photos.Photo;
 import com.vk.api.sdk.objects.photos.PhotoSizes;
 import com.vk.api.sdk.objects.photos.responses.MessageUploadResponse;
 import com.vk.api.sdk.objects.users.UserXtrCounters;
-import com.vk.api.sdk.objects.wall.WallpostAttachmentType;
+import com.vk.api.sdk.objects.video.Video;
+import com.vk.api.sdk.objects.wall.WallpostAttachment;
 import com.vk.api.sdk.objects.wall.WallpostFull;
 import com.vk.api.sdk.queries.messages.MessagesSendQuery;
 import io.github.vanespb.meme_police_bot.objects.MessageDto;
@@ -28,6 +30,7 @@ import org.springframework.stereotype.Component;
 import javax.inject.Inject;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -79,39 +82,30 @@ public class VkComponent extends CallbackApiLongPoll implements Runnable {
                     String.format("From %s %n", author) :
                     String.format("<b>%s</b>%n%s %n", author, text);
             List<MessageAttachment> attachments = message.getAttachments();
-            if (attachments.isEmpty())
-                tgBot.sendMessage(telegrammMessageText);
-            else {
-                List<String> urls = new ArrayList<>();
-                List<String> photoUrls = attachments.stream()
-                        .filter(a -> a.getType().equals(MessageAttachmentType.PHOTO))
-                        .map(this::getPhotoUrl)
-                        .filter(Objects::nonNull)
-                        .collect(Collectors.toList());
-                urls.addAll(photoUrls);
-                if (videoDownloader.isLoggedIn()) {
-                    List<String> videoUrls = attachments.stream()
-                            .filter(a -> a.getType().equals(MessageAttachmentType.VIDEO))
-                            .map(MessageAttachment::getVideo)
-                            .map(v -> String.format("video%s_%s", v.getOwnerId(), v.getId()))
-                            .map(v -> {
-                                try {
-                                    return videoDownloader.getVideoUrl(v);
-                                } catch (IOException exception) {
-                                    exception.printStackTrace();
-                                }
-                                return null;
-                            })
-                            .filter(Objects::nonNull)
-                            .collect(Collectors.toList());
-                    urls.addAll(videoUrls);
-                    tgBot.send(telegrammMessageText, urls);
-                }
-                if (attachments.stream().anyMatch(a -> a.getType().equals(MessageAttachmentType.WALL)))
-                    sendRepostToTg(telegrammMessageText, attachments);
-            }
+            attachments.addAll(message.getFwdMessages().stream()
+                    .map(ForeignMessage::getAttachments)
+                    .flatMap(Collection::stream)
+                    .collect(Collectors.toList()));
+            List<String> fileURLs = attachments.stream()
+                    .map(this::getMessageAttachmentsUrl)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
+            tgBot.send(telegrammMessageText, fileURLs);
+            if (attachments.stream().anyMatch(a -> a.getType().equals(MessageAttachmentType.WALL)))
+                sendRepostToTg(telegrammMessageText, attachments);
         } catch (Exception e) {
             e.printStackTrace();
+        }
+    }
+
+    private String getMessageAttachmentsUrl(MessageAttachment attachment) {
+        switch (attachment.getType()) {
+            case PHOTO:
+                return getPhotoUrl(attachment.getPhoto());
+            case VIDEO:
+                return getVideoUrl(attachment.getVideo());
+            default:
+                return null;
         }
     }
 
@@ -145,11 +139,21 @@ public class VkComponent extends CallbackApiLongPoll implements Runnable {
             WallpostFull wallpostFull = messageAttachment.get().getWall();
             String repostText = wallpostFull.getText();
             List<String> urls = wallpostFull.getAttachments().stream()
-                    .filter(a -> a.getType().equals(WallpostAttachmentType.PHOTO))
-                    .map(a -> a.getPhoto().getSizes().stream().max(Comparator.comparingInt(PhotoSizes::getHeight)))
-                    .map(size -> size.get().getUrl().toString())
+                    .map(this::getWallpostAttachmentsUrl)
+                    .filter(Objects::nonNull)
                     .collect(Collectors.toList());
             tgBot.send(telegrammMessageText + repostText, urls);
+        }
+    }
+
+    private String getWallpostAttachmentsUrl(WallpostAttachment attachment) {
+        switch (attachment.getType()) {
+            case PHOTO:
+                return getPhotoUrl(attachment.getPhoto());
+            case VIDEO:
+                return getVideoUrl(attachment.getVideo());
+            default:
+                return null;
         }
     }
 
@@ -167,13 +171,23 @@ public class VkComponent extends CallbackApiLongPoll implements Runnable {
         return author;
     }
 
-    private String getPhotoUrl(MessageAttachment attachment) {
-        PhotoSizes image = attachment.getPhoto().getSizes().stream()
+    private String getPhotoUrl(Photo photo) {
+        PhotoSizes image = photo.getSizes().stream()
                 .max(Comparator.comparing(PhotoSizes::getHeight))
                 .orElse(null);
         if (image != null)
             return image.getUrl().toString();
         else return null;
+    }
+
+    private String getVideoUrl(Video video) {
+        String videoId = String.format("video%s_%s", video.getOwnerId(), video.getId());
+        try {
+            return videoDownloader.getVideoUrl(videoId);
+        } catch (IOException exception) {
+            exception.printStackTrace();
+            return null;
+        }
     }
 
     public Integer sendMessage(String message, List<File> files) {
@@ -207,7 +221,7 @@ public class VkComponent extends CallbackApiLongPoll implements Runnable {
                 .server(uploadResponse.getServer())
                 .hash(uploadResponse.getHash())
                 .execute().get(0);
-        file.delete();
+        delete(file);
         return String.format("photo%d_%d", photo.getOwnerId(), photo.getId());
     }
 
@@ -218,7 +232,7 @@ public class VkComponent extends CallbackApiLongPoll implements Runnable {
                 .execute();
         SaveResponse document = vk.docs().save(actor, uploadResponse.getFile())
                 .execute();
-        file.delete();
+        delete(file);
         return String.format("doc%d_%d", document.getDoc().getOwnerId(), document.getDoc().getId());
     }
 
@@ -229,8 +243,16 @@ public class VkComponent extends CallbackApiLongPoll implements Runnable {
         if (StringUtils.containsIgnoreCase(file.getName(), ".MP4")) {
             return uploadVideo(file);
         }
-        file.delete();
+        delete(file);
         return uploadDocument(file);
+    }
+
+    private void delete(File file) {
+        try {
+            Files.delete(file.toPath());
+        } catch (IOException exception) {
+            exception.printStackTrace();
+        }
     }
 
     private String uploadVideo(File file) throws ClientException, ApiException {

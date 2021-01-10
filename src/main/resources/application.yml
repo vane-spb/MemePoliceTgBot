@@ -1,9 +1,29 @@
 server.port: 8066
+jackson:
+    serialization: { WRITE_NULL_MAP_VALUES: false }
+    serialization.fail-on-empty-beans: false
+
+spring:
+    datasource:
+        driver-class-name: org.postgresql.Driver
+        url: jdbc:${DATABASE_URL}
+        username: postgres
+        password: 0
+    jpa:
+        show-sql: false
+        # The SQL dialect makes Hibernate generate better SQL for the chosen database
+        properties:
+            hibernate:
+                dialect: org.hibernate.dialect.PostgreSQLDialect
+                jdbc.lob.non_contextual_creation: true
+                temp.use_jdbc_metadata_defaults: false
+        # Hibernate ddl auto (create, create-drop, validate, update)
+        hibernate.ddl-auto: validate
 
 tgbot:
     name: MEME_POLICE_BOT
     token: ${TG_BOT_TOKEN}
-    channel: -1001261743202
+    channel: -430823423
     channelName: Meme Police
 
 vkbot:

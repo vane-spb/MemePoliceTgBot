@@ -156,6 +156,7 @@ public class TelegrammComponent extends TelegramLongPollingBot {
     }
 
     public void sendMessage(String message) {
+        if (message == null || message.isEmpty()) return;
         try {
             execute(SendMessage
                     .builder()
@@ -169,23 +170,28 @@ public class TelegrammComponent extends TelegramLongPollingBot {
     }
 
     public void send(String message, List<String> fileURLs) {
-        if (fileURLs.isEmpty()) {
-            sendMessage(message);
-        } else {
-            if (fileURLs.size() == 1) {
-                try {
+        try {
+            switch (fileURLs.size()) {
+                case 0:
+                    sendMessage(message);
+                    break;
+                case 1:
                     String fileUrl = fileURLs.get(0);
-                    if (StringUtils.containsIgnoreCase(fileUrl, ".jpg")) sendPhoto(message, fileUrl);
-                    else {
-                        if (StringUtils.containsIgnoreCase(fileUrl, ".mp4")) sendVideo(message, fileUrl);
-                        else sendFile(message, fileUrl);
+                    if (StringUtils.containsIgnoreCase(fileUrl, ".jpg")) {
+                        sendPhoto(message, fileUrl);
+                        break;
                     }
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            } else {
-                sendMediaGroup(message, fileURLs);
+                    if (StringUtils.containsIgnoreCase(fileUrl, ".mp4")) {
+                        sendVideo(message, fileUrl);
+                        break;
+                    }
+                    sendFile(message, fileUrl);
+                    break;
+                default:
+                    sendMediaGroup(message, fileURLs);
             }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 

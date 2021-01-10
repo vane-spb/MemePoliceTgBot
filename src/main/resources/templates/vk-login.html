@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Login to vk</title>
+</head>
+<body>
+<form method="post" th:action="@{/vk-login/user-and-password}" th:object="${login}">
+    <p>e-mail: <input th:field="*{login}" th:placeholder="${login.login}" type="text"/></p>
+    <p>password: <input th:field="*{password}" type="text"/></p>
+    <p><input type="submit" value="first auth step"/></p>
+</form>
+
+<form method="post" th:action="@{/vk-login/captcha1}" th:object="${login}">
+    <p>
+        <input th:field="*{captcha1}" th:placeholder="${login.captcha1}" type="text"/>
+        <img th:src="${'http://vk.com/captcha.php?sid=' + login.captcha1Url}"/>
+    </p>
+    <p><input type="submit" value="Submit"/></p>
+</form>
+
+<form method="post" th:action="@{/vk-login/captcha2}" th:object="${login}">
+    <p>
+        <input th:field="*{captcha2}" th:placeholder="${login.captcha2}" type="text"/>
+        <img th:src="${'http://vk.com/captcha.php?sid=' + login.captcha2Url}"/>
+    </p>
+    <p><input type="submit" value="Submit"/></p>
+</form>
+
+<form method="post" th:action="@{/vk-login/code}" th:object="${login}">
+    <p>secret code: <input th:field="*{code}" th:placeholder="${login.code}" type="text"/></p>
+    <p><input type="submit" value="Submit"/></p>
+</form>
+
+<form method="post" th:action="@{/vk-login/submit}" th:object="${login}">
+    <p><input type="submit" value="Submit cookies to base"/></p>
+</form>
+
+<p th:text=${login.frame}/>
+
+</body>
+</html>
