@@ -23,7 +23,7 @@ spring:
 tgbot:
     name: MEME_POLICE_BOT
     token: ${TG_BOT_TOKEN}
-    channel: -430823423
+    channel: ${TG_CHANNEL_ID}
     channelName: Meme Police
 
 vkbot:
