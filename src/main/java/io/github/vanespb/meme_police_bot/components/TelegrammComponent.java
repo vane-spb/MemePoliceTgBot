@@ -1,6 +1,8 @@
 package io.github.vanespb.meme_police_bot.components;
 
 import io.github.vanespb.meme_police_bot.objects.MessageDto;
+import io.github.vanespb.meme_police_bot.objects.models.UserModel;
+import io.github.vanespb.meme_police_bot.objects.repositories.UserRepository;
 import lombok.*;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
@@ -33,6 +35,9 @@ public class TelegrammComponent extends TelegramLongPollingBot {
     @Autowired
     VkComponent vkBot;
 
+    @Autowired
+    UserRepository userRepository;
+
     @Value("${tgbot.name}")
     private String botUsername;
 
@@ -58,6 +63,9 @@ public class TelegrammComponent extends TelegramLongPollingBot {
 
     public MessageDto convertTelegrammMessageToMessageDto(Message message) {
         String userName = message.getFrom().getUserName();
+        Optional<UserModel> oneByTgNickname = userRepository.getOneByTgNickname(userName);
+        if (oneByTgNickname.isPresent())
+            userName = oneByTgNickname.get().getName();
         MessageDto messageDto = MessageDto.builder()
                 .author(userName)
                 .text(message.getText())
