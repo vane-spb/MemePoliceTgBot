@@ -70,6 +70,7 @@ public class TelegrammComponent extends TelegramLongPollingBot {
         if (command == null || !command.contains("/")) return false;
         if (command.matches("/setnickname.*")) {
             usersWhoWantsToChangeTheirNicknames.add(message.getFrom().getUserName());
+            sendMessage("Enter your new nickname", message.getChatId() + "");
             return true;
         }
         if (command.matches("/getchatid.*")) {
