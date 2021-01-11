@@ -14,7 +14,7 @@
 <form method="post" th:action="@{/vk-login/captcha1}" th:object="${login}">
     <p>
         <input th:field="*{captcha1}" th:placeholder="${login.captcha1}" type="text"/>
-        <img th:src="${'http://vk.com/captcha.php?sid=' + login.captcha1Url}"/>
+        <img alt="capcha1" th:src="${'http://vk.com/captcha.php?sid=' + login.captcha1Url}"/>
     </p>
     <p><input type="submit" value="Submit"/></p>
 </form>
@@ -22,7 +22,7 @@
 <form method="post" th:action="@{/vk-login/captcha2}" th:object="${login}">
     <p>
         <input th:field="*{captcha2}" th:placeholder="${login.captcha2}" type="text"/>
-        <img th:src="${'http://vk.com/captcha.php?sid=' + login.captcha2Url}"/>
+        <img alt="capcha2" th:src="${'http://vk.com/captcha.php?sid=' + login.captcha2Url}"/>
     </p>
     <p><input type="submit" value="Submit"/></p>
 </form>
