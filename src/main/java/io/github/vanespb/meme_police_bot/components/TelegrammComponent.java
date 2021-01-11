@@ -91,6 +91,7 @@ public class TelegrammComponent extends TelegramLongPollingBot {
         }
         userModel.setName(message.getText());
         userRepository.save(userModel);
+        usersWhoWantsToChangeTheirNicknames.remove(userName);
     }
 
     public MessageDto convertTelegrammMessageToMessageDto(Message message) {
