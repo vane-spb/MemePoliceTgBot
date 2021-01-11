@@ -67,7 +67,7 @@ public class TelegrammComponent extends TelegramLongPollingBot {
 
     private boolean proceedCommands(Message message) {
         String command = message.getText();
-        if (!command.contains("/")) return false;
+        if (command == null || !command.contains("/")) return false;
         if (command.matches("/setnickname.*")) {
             usersWhoWantsToChangeTheirNicknames.add(message.getFrom().getUserName());
             return true;
