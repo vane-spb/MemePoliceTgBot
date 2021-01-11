@@ -23,8 +23,6 @@ spring:
 tgbot:
     name: MEME_POLICE_BOT
     token: ${TG_BOT_TOKEN}
-    channel: ${TG_CHANNEL_ID}
-    channelName: Meme Police
 
 vkbot:
     name: MEME_POLICE_BOT
@@ -32,10 +30,7 @@ vkbot:
     appid: ${VK_BOT_ID}
     groupId: ${VK_GROUP_ID}
     groupToken: ${VK_GROUP_TOKEN}
-    conferenceId: ${VK_CONFERENCE_ID}
 
 vk-user:
     id: ${VK_USER_ID}
     token: ${VK_USER_TOKEN}
-    email: ${VK_USER_EMAIL}
-    password: ${VK_USER_PASSWORD}

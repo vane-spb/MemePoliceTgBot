@@ -2,7 +2,7 @@ CREATE TABLE users
 (   id SERIAL PRIMARY KEY,
     name varchar(100) NOT NULL UNIQUE,
     tg_nickname varchar(100) NOT NULL UNIQUE,
-    vk_id int NOT NULL UNIQUE
+    vk_id int UNIQUE
 );
 
 INSERT INTO users (id, name, tg_nickname, vk_id) VALUES

@@ -22,6 +22,9 @@ public class MessageDto {
     private MessageDto reply;
     private PostDto repost;
 
+    public MessageDto(String text) {
+        this.text = text;
+    }
 
     public void addMedia(String s) {
         media.add(s);
@@ -40,12 +43,15 @@ public class MessageDto {
     }
 
     public List<File> getAllMediaFiles() {
-        ArrayList<File> fileArrayList = new ArrayList<>(mediaFiles);
-        if (reply != null && reply.mediaFiles != null)
-            fileArrayList.addAll(reply.mediaFiles);
-        if (repost != null && repost.getMediaFiles() != null)
-            fileArrayList.addAll(repost.getMediaFiles());
-        return fileArrayList;
+        if (mediaFiles != null) {
+            ArrayList<File> fileArrayList = new ArrayList<>(mediaFiles);
+            if (reply != null && reply.mediaFiles != null)
+                fileArrayList.addAll(reply.mediaFiles);
+            if (repost != null && repost.getMediaFiles() != null)
+                fileArrayList.addAll(repost.getMediaFiles());
+            return fileArrayList;
+        }
+        return new ArrayList<>();
     }
 
 }

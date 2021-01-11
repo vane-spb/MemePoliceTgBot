@@ -21,6 +21,6 @@ public class UserModel {
     @Column(name = "tg_nickname", unique = true, nullable = false)
     String tgNickname;
 
-    @Column(name = "vk_id", unique = true, nullable = false)
+    @Column(name = "vk_id", unique = true)
     Integer vkId;
 }

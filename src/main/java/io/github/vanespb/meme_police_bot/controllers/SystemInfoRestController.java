@@ -6,11 +6,8 @@ import io.github.vanespb.meme_police_bot.components.VkComponent;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Objects;
 
@@ -45,17 +42,5 @@ public class SystemInfoRestController {
             jsonAnswer.put("last_vk_error", vkError.getMessage() + Arrays.toString(vkError.getStackTrace()));
 
         return jsonAnswer.toString();
-    }
-
-    @PostMapping("send_to_vk")
-    public String sendToVk(@RequestParam(value = "message") String message, @RequestParam(value = "content") String url) {
-        vk.sendMessage(message, new ArrayList<>());
-        return "Done!";
-    }
-
-    @PostMapping("send_to_tg")
-    public String sendToTg(@RequestParam(value = "message") String message) {
-        tg.sendMessage(message);
-        return "Done!";
     }
 }

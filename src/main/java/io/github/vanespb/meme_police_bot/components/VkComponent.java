@@ -21,6 +21,7 @@ import com.vk.api.sdk.objects.wall.WallpostAttachment;
 import com.vk.api.sdk.objects.wall.WallpostFull;
 import com.vk.api.sdk.queries.messages.MessagesSendQuery;
 import io.github.vanespb.meme_police_bot.objects.MessageDto;
+import io.github.vanespb.meme_police_bot.services.ChatLinkingService;
 import lombok.Getter;
 import lombok.Setter;
 import org.apache.commons.lang3.StringUtils;
@@ -41,7 +42,7 @@ public class VkComponent extends CallbackApiLongPoll implements Runnable {
     private final GroupActor actor;
     private final VkUserComponent userComponent;
     private final VkVideoDownloader videoDownloader;
-    private final Integer conferenceId;
+    private final ChatLinkingService linkingService;
     private final Random random = new Random();
     @Setter
     private TelegrammComponent tgBot;
@@ -51,12 +52,12 @@ public class VkComponent extends CallbackApiLongPoll implements Runnable {
     @Inject
     public VkComponent(@Value("${vkbot.groupId}") Integer groupId,
                        @Value("${vkbot.groupToken}") String groupToken,
-                       @Value("${vkbot.conferenceId}") Integer conferenceId,
+                       ChatLinkingService linkingService,
                        VkUserComponent userComponent,
                        VkVideoDownloader videoDownloader) {
         super(new VkApiClient(new HttpTransportClient()), new GroupActor(groupId, groupToken));
         actor = new GroupActor(groupId, groupToken);
-        this.conferenceId = conferenceId;
+        this.linkingService = linkingService;
         this.userComponent = userComponent;
         this.videoDownloader = videoDownloader;
     }
@@ -75,27 +76,45 @@ public class VkComponent extends CallbackApiLongPoll implements Runnable {
     @Override
     public void messageNew(Integer groupId, Message message) {
         lastMessage = message;
-        try {
-            String author = getAuthor(message);
-            String text = message.getText();
-            String telegrammMessageText = text.isEmpty() ?
-                    String.format("From %s %n", author) :
-                    String.format("<b>%s</b>%n%s %n", author, text);
-            List<MessageAttachment> attachments = message.getAttachments();
-            attachments.addAll(message.getFwdMessages().stream()
-                    .map(ForeignMessage::getAttachments)
-                    .flatMap(Collection::stream)
-                    .collect(Collectors.toList()));
-            List<String> fileURLs = attachments.stream()
-                    .map(this::getMessageAttachmentsUrl)
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toList());
-            tgBot.send(telegrammMessageText, fileURLs);
-            if (attachments.stream().anyMatch(a -> a.getType().equals(MessageAttachmentType.WALL)))
-                sendRepostToTg(telegrammMessageText, attachments);
-        } catch (Exception e) {
-            e.printStackTrace();
+        if (proceedCommands(message)) return;
+        Integer peerId = message.getPeerId();
+        if (linkingService.hasVkLinking(peerId))
+            try {
+                String author = getAuthor(message);
+                String text = message.getText();
+                String telegrammMessageText = text.isEmpty() ?
+                        String.format("From %s %n", author) :
+                        String.format("<b>%s</b>%n%s %n", author, text);
+                List<MessageAttachment> attachments = message.getAttachments();
+                attachments.addAll(message.getFwdMessages().stream()
+                        .map(ForeignMessage::getAttachments)
+                        .flatMap(Collection::stream)
+                        .collect(Collectors.toList()));
+                List<String> fileURLs = attachments.stream()
+                        .map(this::getMessageAttachmentsUrl)
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toList());
+                tgBot.send(telegrammMessageText, fileURLs, "" + linkingService.getTgChatId(peerId));
+                if (attachments.stream().anyMatch(a -> a.getType().equals(MessageAttachmentType.WALL)))
+                    sendRepostToTg(telegrammMessageText, attachments, peerId);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+    }
+
+    private boolean proceedCommands(Message message) {
+        String command = message.getText();
+        Integer peerId = message.getPeerId();
+        if (!command.contains("/")) return false;
+        if (command.matches("/wire -*[0-9]*")) {
+            String tgChatId = command.split(" ")[1];
+            return linkingService.createNewLinking(peerId, tgChatId);
         }
+        if (command.matches("/peerid.*")) {
+            sendMessage(new MessageDto("Current peerId = " + peerId), peerId);
+            return true;
+        }
+        return false;
     }
 
     private String getMessageAttachmentsUrl(MessageAttachment attachment) {
@@ -110,19 +129,19 @@ public class VkComponent extends CallbackApiLongPoll implements Runnable {
     }
 
     //TODO: work with case when attachments number > 10
-    public void sendMessage(MessageDto message) {
+    public void sendMessage(MessageDto message, Integer chatId) {
         try {
             MessagesSendQuery sendQuery = vk.messages().send(actor)
                     .message(message.getFullText())
                     .attachment(message.getAllMediaFiles().stream().map(f -> {
                         try {
-                            return uploadFile(f);
+                            return uploadFile(f, chatId);
                         } catch (ClientException | ApiException e) {
                             e.printStackTrace();
                         }
                         return null;
                     }).collect(Collectors.joining(",")))
-                    .peerId(conferenceId)
+                    .peerId(chatId)
                     .randomId(random.nextInt());
             sendQuery.execute();
         } catch (ApiException | ClientException e) {
@@ -131,7 +150,7 @@ public class VkComponent extends CallbackApiLongPoll implements Runnable {
         }
     }
 
-    private void sendRepostToTg(String telegrammMessageText, List<MessageAttachment> attachments) {
+    private void sendRepostToTg(String telegrammMessageText, List<MessageAttachment> attachments, int peerId) {
         Optional<MessageAttachment> messageAttachment = attachments.stream()
                 .filter(a -> a.getType().equals(MessageAttachmentType.WALL))
                 .findFirst();
@@ -142,7 +161,7 @@ public class VkComponent extends CallbackApiLongPoll implements Runnable {
                     .map(this::getWallpostAttachmentsUrl)
                     .filter(Objects::nonNull)
                     .collect(Collectors.toList());
-            tgBot.send(telegrammMessageText + repostText, urls);
+            tgBot.send(telegrammMessageText + repostText, urls, "" + linkingService.getTgChatId(peerId));
         }
     }
 
@@ -190,28 +209,6 @@ public class VkComponent extends CallbackApiLongPoll implements Runnable {
         }
     }
 
-    public Integer sendMessage(String message, List<File> files) {
-        MessagesSendQuery sendQuery = vk.messages().send(actor)
-                .message(message)
-                .attachment(files.stream().map(f -> {
-                    try {
-                        return uploadFile(f);
-                    } catch (ClientException | ApiException e) {
-                        e.printStackTrace();
-                    }
-                    return null;
-                }).collect(Collectors.joining(",")))
-                .peerId(conferenceId)
-                .randomId(random.nextInt());
-        try {
-            return sendQuery.execute();
-        } catch (ApiException | ClientException e) {
-            e.printStackTrace();
-            error = e;
-        }
-        return null;
-    }
-
     public String uploadPhoto(File file) throws ClientException, ApiException {
         String uploadUrl = vk.photos().getMessagesUploadServer(actor).execute().getUploadUrl().toString();
         MessageUploadResponse uploadResponse = vk.upload()
@@ -225,8 +222,8 @@ public class VkComponent extends CallbackApiLongPoll implements Runnable {
         return String.format("photo%d_%d", photo.getOwnerId(), photo.getId());
     }
 
-    public String uploadDocument(File file) throws ClientException, ApiException {
-        String uploadUrl = vk.docs().getMessagesUploadServer(actor).peerId(conferenceId).execute().getUploadUrl().toString();
+    public String uploadDocument(File file, Integer chatId) throws ClientException, ApiException {
+        String uploadUrl = vk.docs().getMessagesUploadServer(actor).peerId(chatId).execute().getUploadUrl().toString();
         DocUploadResponse uploadResponse = vk.upload()
                 .doc(uploadUrl, file)
                 .execute();
@@ -236,7 +233,7 @@ public class VkComponent extends CallbackApiLongPoll implements Runnable {
         return String.format("doc%d_%d", document.getDoc().getOwnerId(), document.getDoc().getId());
     }
 
-    public String uploadFile(File file) throws ClientException, ApiException {
+    public String uploadFile(File file, Integer chatId) throws ClientException, ApiException {
         if (file.getName().contains(".jpg")) {
             return uploadPhoto(file);
         }
@@ -244,7 +241,7 @@ public class VkComponent extends CallbackApiLongPoll implements Runnable {
             return uploadVideo(file);
         }
         delete(file);
-        return uploadDocument(file);
+        return uploadDocument(file, chatId);
     }
 
     private void delete(File file) {

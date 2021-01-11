@@ -3,6 +3,7 @@ package io.github.vanespb.meme_police_bot.components;
 import io.github.vanespb.meme_police_bot.objects.MessageDto;
 import io.github.vanespb.meme_police_bot.objects.models.UserModel;
 import io.github.vanespb.meme_police_bot.objects.repositories.UserRepository;
+import io.github.vanespb.meme_police_bot.services.ChatLinkingService;
 import lombok.*;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
@@ -38,27 +39,58 @@ public class TelegrammComponent extends TelegramLongPollingBot {
     @Autowired
     UserRepository userRepository;
 
+    private final Set<String> usersWhoWantsToChangeTheirNicknames = new HashSet<>();
+
     @Value("${tgbot.name}")
     private String botUsername;
 
     @Value("${tgbot.token}")
     private String botToken;
-
-    @Value("${tgbot.channel}")
-    private String channelId;
-
-    @Value("${tgbot.channelName}")
-    private String channelName;
+    @Autowired
+    ChatLinkingService linkingService;
 
     @Override
     public void onUpdateReceived(Update update) {
         if (update.hasMessage()) {
             Message message = update.getMessage();
-            String title = message.getChat().getTitle();
-            if (title != null && title.contains(channelName)) {
-                vkBot.sendMessage(convertTelegrammMessageToMessageDto(message));
+            if (proceedCommands(message)) return;
+            if (usersWhoWantsToChangeTheirNicknames.contains(message.getFrom().getUserName())) {
+                changeNickname(message);
+                return;
+            }
+            Long chatId = message.getChatId();
+            if (linkingService.hasTgLinking(chatId)) {
+                vkBot.sendMessage(convertTelegrammMessageToMessageDto(message), linkingService.getVkChatId(chatId));
             }
         }
+    }
+
+    private boolean proceedCommands(Message message) {
+        String command = message.getText();
+        if (!command.contains("/")) return false;
+        if (command.matches("/setnickname.*")) {
+            usersWhoWantsToChangeTheirNicknames.add(message.getFrom().getUserName());
+            return true;
+        }
+        if (command.matches("/getchatid.*")) {
+            Long chatId = message.getChatId();
+            sendMessage("Current chat id " + chatId, chatId + "");
+        }
+        return false;
+    }
+
+    private void changeNickname(Message message) {
+        String userName = message.getFrom().getUserName();
+        Optional<UserModel> oneByTgNickname = userRepository.getOneByTgNickname(userName);
+        UserModel userModel;
+        if (oneByTgNickname.isPresent()) {
+            userModel = oneByTgNickname.get();
+        } else {
+            userModel = new UserModel();
+            userModel.setTgNickname(userName);
+        }
+        userModel.setName(message.getText());
+        userRepository.save(userModel);
     }
 
     public MessageDto convertTelegrammMessageToMessageDto(Message message) {
@@ -94,7 +126,7 @@ public class TelegrammComponent extends TelegramLongPollingBot {
 
     public List<File> getFilesFromMessage(Message message) {
         List<File> files = new ArrayList<>();
-        files.addAll(getFilesFromEntites(message));
+        files.addAll(getFilesFromEntities(message));
         files.addAll(getFilesFromPhoto(message));
         files.addAll(getVideosFromMessage(message));
         return files;
@@ -119,7 +151,7 @@ public class TelegrammComponent extends TelegramLongPollingBot {
         return files;
     }
 
-    private List<File> getFilesFromEntites(Message message) {
+    private List<File> getFilesFromEntities(Message message) {
         if (message.hasEntities())
             return message.getEntities().stream()
                     .map(e -> {
@@ -163,12 +195,12 @@ public class TelegrammComponent extends TelegramLongPollingBot {
         return file;
     }
 
-    public void sendMessage(String message) {
+    public void sendMessage(String message, String chatId) {
         if (message == null || message.isEmpty()) return;
         try {
             execute(SendMessage
                     .builder()
-                    .chatId(channelId)
+                    .chatId(chatId)
                     .parseMode(ParseMode.HTML)
                     .text(message)
                     .build());
@@ -177,37 +209,37 @@ public class TelegrammComponent extends TelegramLongPollingBot {
         }
     }
 
-    public void send(String message, List<String> fileURLs) {
+    public void send(String message, List<String> fileURLs, String chatId) {
         try {
             switch (fileURLs.size()) {
                 case 0:
-                    sendMessage(message);
+                    sendMessage(message, chatId);
                     break;
                 case 1:
                     String fileUrl = fileURLs.get(0);
                     if (StringUtils.containsIgnoreCase(fileUrl, ".jpg")) {
-                        sendPhoto(message, fileUrl);
+                        sendPhoto(message, fileUrl, chatId);
                         break;
                     }
                     if (StringUtils.containsIgnoreCase(fileUrl, ".mp4")) {
-                        sendVideo(message, fileUrl);
+                        sendVideo(message, fileUrl, chatId);
                         break;
                     }
-                    sendFile(message, fileUrl);
+                    sendFile(message, fileUrl, chatId);
                     break;
                 default:
-                    sendMediaGroup(message, fileURLs);
+                    sendMediaGroup(message, fileURLs, chatId);
             }
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
-    private void sendFile(String message, String fileUrl) throws IOException {
+    private void sendFile(String message, String fileUrl, String chatId) throws IOException {
         InputStream inputStream = new URL(fileUrl).openStream();
 
         SendDocument sendDocument = SendDocument.builder()
-                .chatId(channelId)
+                .chatId(chatId)
                 .document(new InputFile(inputStream, FilenameUtils.getName(fileUrl)))
                 .parseMode(ParseMode.HTML)
                 .caption(message)
@@ -219,11 +251,11 @@ public class TelegrammComponent extends TelegramLongPollingBot {
         }
     }
 
-    private void sendVideo(String message, String fileUrl) throws IOException {
+    private void sendVideo(String message, String fileUrl, String chatId) throws IOException {
         InputStream inputStream = new URL(fileUrl).openStream();
 
         SendVideo sendVideo = SendVideo.builder()
-                .chatId(channelId)
+                .chatId(chatId)
                 .video(new InputFile(inputStream, FilenameUtils.getName(fileUrl)))
                 .parseMode(ParseMode.HTML)
                 .caption(message)
@@ -235,11 +267,11 @@ public class TelegrammComponent extends TelegramLongPollingBot {
         }
     }
 
-    public void sendPhoto(String message, String fileUrl) throws IOException {
+    public void sendPhoto(String message, String fileUrl, String chatId) throws IOException {
         InputStream inputStream = new URL(fileUrl).openStream();
 
         SendPhoto sendPhoto = SendPhoto.builder()
-                .chatId(channelId)
+                .chatId(chatId)
                 .photo(new InputFile(inputStream, "meme.jpg"))
                 .parseMode(ParseMode.HTML)
                 .caption(message)
@@ -251,9 +283,9 @@ public class TelegrammComponent extends TelegramLongPollingBot {
         }
     }
 
-    protected void sendMediaGroup(String message, List<String> fileURLs) {
+    protected void sendMediaGroup(String message, List<String> fileURLs, String chatId) {
         SendMediaGroup sendMediaGroup = SendMediaGroup.builder()
-                .chatId(channelId)
+                .chatId(chatId)
                 .medias(fileURLs.stream()
                         .map(url -> getInputMedia(url, message))
                         .collect(Collectors.toList()))
