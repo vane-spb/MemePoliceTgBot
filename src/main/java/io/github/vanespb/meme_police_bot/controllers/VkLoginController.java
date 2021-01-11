@@ -20,7 +20,6 @@ public class VkLoginController {
 
     @GetMapping("/vk-login")
     public String get(Model model) throws IOException {
-        //TODO: det first captcha
         loginModel.setFrame(downloader.loadLoginPage());
         loginModel.setCaptcha1Url(downloader.getCaptchaSid1());
         return getLoginPage(model);
