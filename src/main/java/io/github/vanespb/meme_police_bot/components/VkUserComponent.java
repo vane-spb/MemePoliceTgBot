@@ -15,14 +15,12 @@ import java.net.URL;
 @Component
 public class VkUserComponent {
     private final VkApiClient vk = new VkApiClient(new HttpTransportClient());
-    private final Integer userId;
     private final Integer groupId;
     private final UserActor actor;
 
     public VkUserComponent(@Value("${vk-user.id}") Integer userId,
                            @Value("${vkbot.groupId}") Integer groupId,
                            @Value("${vk-user.token}") String userToken) {
-        this.userId = userId;
         this.groupId = groupId;
         actor = new UserActor(userId, userToken);
     }
@@ -33,9 +31,6 @@ public class VkUserComponent {
                 .groupId(groupId)
                 .execute().getUploadUrl();
         VideoUploadResponse uploadResponse = vk.upload().video(uploadUrl.toString(), file).execute();
-        file.delete();
         return String.format("video-%s_%s", groupId, uploadResponse.getVideoId());
     }
-
-    //TODO: video downloading
 }

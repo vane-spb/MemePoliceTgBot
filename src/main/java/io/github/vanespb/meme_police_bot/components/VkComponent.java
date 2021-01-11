@@ -244,6 +244,12 @@ public class VkComponent extends CallbackApiLongPoll implements Runnable {
         return uploadDocument(file, chatId);
     }
 
+    private String uploadVideo(File file) throws ClientException, ApiException {
+        String video = userComponent.uploadVideo(file);
+        delete(file);
+        return video;
+    }
+
     private void delete(File file) {
         try {
             Files.delete(file.toPath());
@@ -251,8 +257,5 @@ public class VkComponent extends CallbackApiLongPoll implements Runnable {
             exception.printStackTrace();
         }
     }
-
-    private String uploadVideo(File file) throws ClientException, ApiException {
-        return userComponent.uploadVideo(file);
-    }
 }
+
