@@ -5,6 +5,9 @@
     <title>Login to vk</title>
 </head>
 <body>
+Is app logged in?
+<p th:text=${login.isLoggedIn}/>
+
 <form method="post" th:action="@{/vk-login/user-and-password}" th:object="${login}">
     <p>e-mail: <input th:field="*{login}" th:placeholder="${login.login}" type="text"/></p>
     <p>password: <input th:field="*{password}" type="text"/></p>

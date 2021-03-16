@@ -20,6 +20,7 @@ public class VkLoginController {
 
     @GetMapping("/vk-login")
     public String get(Model model) throws IOException {
+        loginModel.setIsLoggedIn(downloader.isLoggedIn() ? "yes" : "no");
         loginModel.setFrame(downloader.loadLoginPage());
         loginModel.setCaptcha1Url(downloader.getCaptchaSid1());
         return getLoginPage(model);
@@ -33,6 +34,7 @@ public class VkLoginController {
         loginModel.setLogin(login);
         loginModel.setPassword("*******");
         loginModel.setCaptcha2Url(downloader.getCaptchaSid2());
+        loginModel.setIsLoggedIn(downloader.isLoggedIn() ? "yes" : "no");
         return getLoginPage(model);
     }
 
@@ -40,6 +42,7 @@ public class VkLoginController {
     public String code(@ModelAttribute(name = "code") String code, Model model) throws IOException {
         loginModel.setFrame(downloader.secondAuthorisationStep(code));
         loginModel.setCode(code);
+        loginModel.setIsLoggedIn(downloader.isLoggedIn() ? "yes" : "no");
         return getLoginPage(model);
     }
 
@@ -60,6 +63,7 @@ public class VkLoginController {
     @PostMapping("/vk-login/submit")
     public String submit(Model model) {
         downloader.setTempCookiesAsActive();
+        loginModel.setIsLoggedIn(downloader.isLoggedIn() ? "yes" : "no");
         return getLoginPage(model);
     }
 

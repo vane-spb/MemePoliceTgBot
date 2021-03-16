@@ -6,6 +6,7 @@ import lombok.Setter;
 @Getter
 @Setter
 public class LoginModel {
+    String isLoggedIn;
     String login;
     String password;
     String code;
