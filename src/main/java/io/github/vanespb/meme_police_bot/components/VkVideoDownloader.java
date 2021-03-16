@@ -1,5 +1,6 @@
 package io.github.vanespb.meme_police_bot.components;
 
+import io.github.vanespb.meme_police_bot.objects.exceptions.VideoDownloadingException;
 import io.github.vanespb.meme_police_bot.objects.models.CookieModel;
 import io.github.vanespb.meme_police_bot.objects.repositories.CookiesRepository;
 import lombok.Getter;
@@ -25,7 +26,7 @@ public class VkVideoDownloader {
     public static final String SITE_URL = "https://m.vk.com/";
     private Map<String, String> cookies;
     @Autowired
-    CookiesRepository cookiesRepository;
+    protected CookiesRepository cookiesRepository;
     //login cache
     private Map<String, String> cookiesTemp;
     private String authorisationLink = null;
@@ -49,10 +50,12 @@ public class VkVideoDownloader {
         cookies = cookiesTemp;
         cookiesTemp = null;
         authorisationLink = null;
-        cookiesRepository.deleteAll();
-        cookiesRepository.saveAll(cookies.entrySet().stream()
-                .map(it -> new CookieModel(it.getKey(), it.getValue()))
-                .collect(Collectors.toList()));
+        if (cookiesRepository != null) {
+            cookiesRepository.deleteAll();
+            cookiesRepository.saveAll(cookies.entrySet().stream()
+                    .map(it -> new CookieModel(it.getKey(), it.getValue()))
+                    .collect(Collectors.toList()));
+        }
     }
 
 
@@ -111,13 +114,29 @@ public class VkVideoDownloader {
         return response.body();
     }
 
-    public String getVideoUrl(String video) throws IOException {
+    public boolean isLoggedIn() {
+        try {
+            Document document = Jsoup.connect(SITE_URL)
+                    .userAgent(USER_AGENT)
+                    .cookies(cookies)
+                    .followRedirects(true)
+                    .get();
+            return document.title().contains("Новости");
+        } catch (Exception exception) {
+            exception.printStackTrace();
+            return false;
+        }
+    }
+
+    public String getVideoUrl(String video) throws IOException, VideoDownloadingException {
         String videoUrl = SITE_URL + video;
         Document document = Jsoup.connect(videoUrl)
                 .userAgent(USER_AGENT)
                 .cookies(cookies)
                 .followRedirects(true)
                 .get();
+        if (document.select("title").text().contains("Вход"))
+            throw new VideoDownloadingException("Vk video downloading service is not logged in.");
         return document.select("video").select("source").get(1).attr("src");
     }
 }

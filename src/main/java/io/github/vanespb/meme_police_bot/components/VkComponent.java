@@ -21,6 +21,7 @@ import com.vk.api.sdk.objects.wall.WallpostAttachment;
 import com.vk.api.sdk.objects.wall.WallpostFull;
 import com.vk.api.sdk.queries.messages.MessagesSendQuery;
 import io.github.vanespb.meme_police_bot.objects.MessageDto;
+import io.github.vanespb.meme_police_bot.objects.exceptions.VideoDownloadingException;
 import io.github.vanespb.meme_police_bot.services.ChatLinkingService;
 import lombok.Getter;
 import lombok.Setter;
@@ -203,7 +204,7 @@ public class VkComponent extends CallbackApiLongPoll implements Runnable {
         String videoId = String.format("video%s_%s", video.getOwnerId(), video.getId());
         try {
             return videoDownloader.getVideoUrl(videoId);
-        } catch (IOException exception) {
+        } catch (IOException | VideoDownloadingException exception) {
             exception.printStackTrace();
             return null;
         }
