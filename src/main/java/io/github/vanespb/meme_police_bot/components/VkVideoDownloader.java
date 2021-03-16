@@ -63,10 +63,8 @@ public class VkVideoDownloader {
     }
 
     private void updateCookies(Map<String, String> newCookies) {
-        if (newCookies != cookies) {
-            cookies = newCookies;
-            saveCookiesToDatabase();
-        }
+        cookies.putAll(newCookies);
+        saveCookiesToDatabase();
     }
 
     public String loadLoginPage() throws IOException {
