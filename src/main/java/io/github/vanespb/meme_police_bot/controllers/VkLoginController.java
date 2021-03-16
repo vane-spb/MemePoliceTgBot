@@ -59,7 +59,7 @@ public class VkLoginController {
 
     @PostMapping("/vk-login/submit")
     public String submit(Model model) {
-        downloader.setCookies();
+        downloader.setTempCookiesAsActive();
         return getLoginPage(model);
     }
 

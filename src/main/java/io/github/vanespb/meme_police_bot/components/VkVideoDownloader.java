@@ -40,24 +40,34 @@ public class VkVideoDownloader {
     private String captchaSid2 = null;
 
     @PostConstruct
-    public void getCookies() {
+    public void getCookiesFromDatabase() {
         cookies = cookiesRepository.findAll().stream()
                 .collect(Collectors.toMap(CookieModel::getKey, CookieModel::getValue));
     }
 
     @Transactional
-    public void setCookies() {
+    public void setTempCookiesAsActive() {
         cookies = cookiesTemp;
         cookiesTemp = null;
         authorisationLink = null;
-        if (cookiesRepository != null) {
-            cookiesRepository.deleteAll();
-            cookiesRepository.saveAll(cookies.entrySet().stream()
-                    .map(it -> new CookieModel(it.getKey(), it.getValue()))
-                    .collect(Collectors.toList()));
-        }
+        saveCookiesToDatabase();
     }
 
+    @Transactional
+    public void saveCookiesToDatabase() {
+        if (cookiesRepository == null) return;
+        cookiesRepository.deleteAll();
+        cookiesRepository.saveAll(cookies.entrySet().stream()
+                .map(it -> new CookieModel(it.getKey(), it.getValue()))
+                .collect(Collectors.toList()));
+    }
+
+    private void updateCookies(Map<String, String> newCookies) {
+        if (newCookies != cookies) {
+            cookies = newCookies;
+            saveCookiesToDatabase();
+        }
+    }
 
     public String loadLoginPage() throws IOException {
         Connection.Response response = Jsoup.connect(SITE_URL)
@@ -129,14 +139,16 @@ public class VkVideoDownloader {
     }
 
     public String getVideoUrl(String video) throws IOException, VideoDownloadingException {
+        if (!isLoggedIn())
+            throw new VideoDownloadingException("Vk video downloading service is not logged in.");
         String videoUrl = SITE_URL + video;
-        Document document = Jsoup.connect(videoUrl)
+        Connection.Response response = Jsoup.connect(videoUrl)
                 .userAgent(USER_AGENT)
                 .cookies(cookies)
                 .followRedirects(true)
-                .get();
-        if (document.select("title").text().contains("Вход"))
-            throw new VideoDownloadingException("Vk video downloading service is not logged in.");
+                .execute();
+        updateCookies(response.cookies());
+        Document document = response.parse();
         return document.select("video").select("source").get(1).attr("src");
     }
 }

@@ -26,7 +26,7 @@ class VkVideoDownloaderTest {
     @Test
     void isLoggedInTestNegative() throws IOException {
         testDownloader.loadLoginPage();
-        testDownloader.setCookies();
+        testDownloader.setTempCookiesAsActive();
         assertFalse(testDownloader.isLoggedIn());
     }
 
@@ -51,7 +51,7 @@ class VkVideoDownloaderTest {
             testDownloader.setCaptcha2(getInfoFromTester("captcha1"));
         }
         testDownloader.secondAuthorisationStep(getInfoFromTester("secret code"));
-        testDownloader.setCookies();
+        testDownloader.setTempCookiesAsActive();
         assertTrue(testDownloader.isLoggedIn());
     }
 }
